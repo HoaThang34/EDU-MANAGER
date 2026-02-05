@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+{% block title %}Lịch Sử Vi Phạm{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+    
+    <div class="flex flex-col md:flex-row justify-between items-end gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800"><i class="fas fa-history mr-2 text-indigo-600"></i>Kho Lưu Trữ Vi Phạm</h1>
+            <p class="text-slate-500 mt-1 text-sm">Tra cứu và phân tích lại dữ liệu các tuần học cũ.</p>
+        </div>
+
+        <form method="GET" action="{{ url_for('history') }}" class="flex flex-wrap items-center gap-3">
+            <div class="relative">
+                <i class="fas fa-calendar-week absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                <select name="week" onchange="this.form.submit()" 
+                        class="pl-10 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm font-bold text-slate-700 cursor-pointer min-w-[120px]">
+                    {% for w in weeks %}
+                        <option value="{{ w }}" {% if w == selected_week %}selected{% endif %}>Tuần {{ w }}</option>
+                    {% else %}
+                        <option value="">Trống</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="relative">
+                <i class="fas fa-users absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                <select name="class_select" onchange="this.form.submit()" 
+                        class="pl-10 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium text-slate-700 cursor-pointer min-w-[140px]">
+                    <option value="">-- Tất cả lớp --</option>
+                    {% for c in all_classes %}
+                        <option value="{{ c }}" {% if c == selected_class %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            {% if selected_week and violations %}
+            <a href="{{ url_for('export_history', week=selected_week, class_select=selected_class) }}" 
+               class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg shadow-sm transition">
+                <i class="fas fa-file-excel"></i> Xuất Excel
+            </a>
+            {% endif %}
+        </form>
+    </div>
+
+    {% if selected_week %}
+    
+    <div class="flex justify-end">
+        <button id="btn-analyze-history" onclick="analyzeHistory('{{ selected_week }}')" 
+                class="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition transform hover:-translate-y-0.5 font-bold flex items-center gap-2">
+            <i class="fas fa-magic"></i> AI Đánh Giá Tuần {{ selected_week }}
+        </button>
+    </div>
+    
+    <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-5 mt-6 mb-6 shadow-sm">
+        <div class="flex flex-col md:flex-row gap-4 items-start">
+            <div class="flex-grow w-full">
+                <h3 class="font-bold text-indigo-800 mb-2 flex items-center">
+                    <i class="fas fa-chart-line mr-2"></i> Theo Dõi Sự Tiến Bộ
+                </h3>
+                <p class="text-xs text-indigo-600 mb-2">
+                    Giữ phím <b>Ctrl</b> (Windows) hoặc <b>Command</b> (Mac) để chọn nhiều tuần.
+                </p>
+                <select id="multiWeekSelect" multiple class="w-full border-indigo-300 rounded-lg text-sm h-24 focus:ring-indigo-500 focus:border-indigo-500 p-2 text-indigo-900 bg-white">
+                    {% for w in weeks %}
+                        <option value="{{ w }}">Tuần {{ w }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex-shrink-0 pt-8">
+                <button onclick="analyzeProgress()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition transform hover:-translate-y-0.5 flex items-center gap-2">
+                    <i class="fas fa-search-plus"></i>
+                    Phân Tích Ngay
+                </button>
+            </div>
+        </div>
+        
+        <div id="progress-analysis-box" class="hidden mt-4 pt-4 border-t border-indigo-200 animate-fade-in-down">
+            <div class="flex gap-3">
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-bold text-indigo-900 text-sm">Nhận xét về sự tiến bộ:</h4>
+                    <div id="progress-analysis-content" class="text-slate-700 text-sm mt-1 leading-relaxed whitespace-pre-line"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="ai-history-box" class="hidden bg-white border-l-4 border-purple-500 rounded-r-xl shadow-lg p-6 relative overflow-hidden animate-fade-in-down">
+        <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-purple-100 rounded-full opacity-50 blur-xl"></div>
+        <div class="flex gap-4 relative z-10">
+            <div class="flex-shrink-0">
+                <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 text-xl">
+                    <i class="fas fa-robot"></i>
+                </div>
+            </div>
+            <div class="flex-grow">
+                <h3 class="text-lg font-bold text-gray-800 mb-1">Góc Nhìn Trợ Lý Ảo (Tuần {{ selected_week }})</h3>
+                <div id="ai-history-content" class="text-gray-600 leading-relaxed text-sm md:text-base whitespace-pre-line"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+            <h3 class="font-bold text-slate-700 mb-4 text-center">Tỉ Lệ Xếp Loại Tuần {{ selected_week }}</h3>
+            <div class="relative flex-grow min-h-[250px]">
+                <canvas id="historyPieChart"></canvas>
+            </div>
+        </div>
+        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+            <h3 class="font-bold text-slate-700 mb-4">Top Vi Phạm Phổ Biến Tuần {{ selected_week }}</h3>
+            <div class="relative flex-grow min-h-[250px]">
+                <canvas id="historyBarChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <h3 class="font-bold text-slate-800">
+                Chi Tiết Vi Phạm 
+                {% if selected_class %}- Lớp {{ selected_class }}{% endif %}
+            </h3>
+            <span class="text-xs font-medium px-2.5 py-1 bg-red-100 text-red-700 rounded-full">
+                Tổng: {{ violations|length }} lỗi
+            </span>
+        </div>
+        
+        <div class="overflow-x-auto max-h-[500px]">
+            <table class="min-w-full divide-y divide-slate-100">
+                <thead class="bg-slate-50 sticky top-0">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Thời gian</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Học sinh</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Lớp</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Lỗi vi phạm</th>
+                        <th class="px-6 py-3 text-right text-xs font-bold text-slate-500 uppercase">Điểm trừ</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 bg-white">
+                    {% for v in violations %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                            {{ v.date_committed.strftime('%d/%m/%Y') }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-bold text-slate-700">{{ v.student.name }}</div>
+                            <div class="text-xs text-slate-400 font-mono">{{ v.student.student_code }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 rounded bg-slate-100 text-slate-700 text-xs font-bold">
+                                {{ v.student.student_class }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {{ v.violation_type_name }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <span class="text-red-600 font-bold text-sm bg-red-50 px-2 py-1 rounded">
+                                -{{ v.points_deducted }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-slate-400">
+                            <i class="fas fa-check-circle text-4xl mb-3 text-green-100"></i>
+                            <p>Không có vi phạm nào trong tuần này.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if not selected_class %}
+    <div class="mt-8">
+        <details class="group bg-white rounded-xl shadow-sm border border-slate-200">
+            <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-4 bg-slate-50 rounded-t-xl group-open:border-b border-slate-200">
+                <span class="flex items-center gap-2 text-slate-700 font-bold">
+                    <i class="fas fa-trophy text-yellow-500"></i> Bảng Xếp Hạng Thi Đua Tuần {{ selected_week }}
+                </span>
+                <span class="transition group-open:rotate-180">
+                    <i class="fas fa-chevron-down text-slate-400"></i>
+                </span>
+            </summary>
+            <div class="p-4 text-slate-500 group-open:animate-fadeIn">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-100 text-sm">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left font-semibold">Hạng</th>
+                                <th class="px-4 py-2 text-left font-semibold">Lớp</th>
+                                <th class="px-4 py-2 text-right font-semibold">Điểm Trừ</th>
+                                <th class="px-4 py-2 text-right font-semibold">Tổng Điểm</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cls in class_rankings %}
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-4 py-2">#{{ loop.index }}</td>
+                                <td class="px-4 py-2 font-bold">{{ cls.name }}</td>
+                                <td class="px-4 py-2 text-right text-red-500">-{{ cls.weekly_deduct }}</td>
+                                <td class="px-4 py-2 text-right font-mono font-bold text-indigo-600">{{ cls.avg_score }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+        <div class="inline-block p-4 rounded-full bg-slate-50 mb-4">
+            <i class="fas fa-archive text-4xl text-slate-300"></i>
+        </div>
+        <h3 class="text-lg font-medium text-slate-700">Chưa chọn tuần</h3>
+        <p class="text-slate-500">Vui lòng chọn một tuần để xem dữ liệu lưu trữ.</p>
+    </div>
+    {% endif %}
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    {% if selected_week %}
+    // 1. Dữ liệu từ Backend
+    const pieData = {{ pie_data | safe }};
+    const barLabels = {{ bar_labels | safe }};
+    const barData = {{ bar_data | safe }};
+    const currentClass = "{{ selected_class }}"; // Lấy tên lớp nếu có
+
+    // 2. Vẽ biểu đồ Tròn
+    if (document.getElementById('historyPieChart')) {
+        new Chart(document.getElementById('historyPieChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ["Tốt", "Khá", "Cần cố gắng"],
+                datasets: [{
+                    data: pieData,
+                    backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } },
+                cutout: '70%'
+            }
+        });
+    }
+
+    // 3. Vẽ biểu đồ Cột
+    if (document.getElementById('historyBarChart')) {
+        new Chart(document.getElementById('historyBarChart'), {
+            type: 'bar',
+            data: {
+                labels: barLabels,
+                datasets: [{
+                    label: 'Số lần vi phạm',
+                    data: barData,
+                    backgroundColor: '#6366f1',
+                    borderRadius: 4,
+                    barThickness: 30
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                scales: { 
+                    y: { beginAtZero: true, grid: { borderDash: [2, 4] } },
+                    x: { grid: { display: false } }
+                } 
+            }
+        });
+    }
+
+    // 4. Hàm Gọi AI Phân Tích
+    async function analyzeHistory(week) {
+        const btn = document.getElementById('btn-analyze-history');
+        const box = document.getElementById('ai-history-box');
+        const content = document.getElementById('ai-history-content');
+        
+        // Hiệu ứng loading
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang đọc dữ liệu...';
+        
+        box.classList.remove('hidden');
+        content.innerHTML = '<span class="text-slate-400 italic">Đang phân tích dữ liệu cũ...</span>';
+
+        try {
+            const response = await fetch('/api/analyze_class_stats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    week: week,
+                    class_name: currentClass 
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.error) {
+                content.innerHTML = `<span class="text-red-500">Lỗi: ${data.error}</span>`;
+            } else {
+                // Hiệu ứng gõ chữ
+                typeWriterEffect(data.analysis, content);
+            }
+            
+        } catch (err) {
+            content.innerHTML = '<span class="text-red-500">Lỗi kết nối server.</span>';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    function typeWriterEffect(text, element) {
+        element.innerHTML = "";
+        let i = 0;
+        function type() {
+            if (i < text.length) {
+                element.innerHTML += (text.charAt(i) === '\n') ? '<br>' : text.charAt(i);
+                i++;
+                setTimeout(type, 15);
+            }
+        }
+        type();
+    }
+    {% endif %}
+
+
+    // Hàm xử lý khi bấm nút "Phân Tích Ngay"
+    async function analyzeProgress() {
+        const select = document.getElementById('multiWeekSelect');
+        // Lấy danh sách các tuần được chọn
+        const selectedWeeks = Array.from(select.selectedOptions).map(opt => parseInt(opt.value));
+        
+        const box = document.getElementById('progress-analysis-box');
+        const content = document.getElementById('progress-analysis-content');
+        
+        // Kiểm tra xem người dùng đã chọn tuần chưa
+        if (selectedWeeks.length < 2) {
+            alert("Vui lòng giữ phím Ctrl và chọn ít nhất 2 tuần để so sánh!");
+            return;
+        }
+
+        // Hiện hiệu ứng đang tải
+        box.classList.remove('hidden');
+        content.innerHTML = '<span class="text-indigo-500 italic"><i class="fas fa-spinner fa-spin"></i> Đang tổng hợp dữ liệu và so sánh...</span>';
+
+        try {
+            // Gửi dữ liệu lên Server (app.py)
+            const response = await fetch('/api/analyze_class_stats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    weeks: selectedWeeks,       // Gửi danh sách tuần: [1, 2, 3...]
+                    class_name: currentClass    // Gửi tên lớp (biến này đã có sẵn ở trên)
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                content.innerHTML = `<span class="text-red-500">Lỗi: ${data.error}</span>`;
+            } else {
+                // Chạy hiệu ứng gõ chữ
+                typeWriterEffect(data.analysis, content);
+            }
+
+        } catch (err) {
+            console.error(err);
+            content.innerHTML = '<span class="text-red-500">Lỗi kết nối server.</span>';
+        }
+    }
+</script>
+{% endblock %}
