@@ -176,6 +176,7 @@
                 </div>
             </div>
 
+            {% if current_user.role in ['admin', 'homeroom_teacher'] %}
             <div>
                 <p class="px-3 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Tác Vụ</p>
                 <div class="space-y-1">
@@ -191,8 +192,15 @@
                             class="fas fa-file-import mr-3 group-hover:text-indigo-400 {% if request.endpoint == 'bulk_import_violations' %}text-indigo-400{% endif %}"></i>
                         <span class="font-medium">Nhập Lịch Sử Vi Phạm</span>
                     </a>
+                    <a href="{{ url_for('add_bonus') }}"
+                        class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint == 'add_bonus' %}active text-white bg-slate-800 border-emerald-500{% endif %}">
+                        <i
+                            class="fas fa-star mr-3 group-hover:text-emerald-400 {% if request.endpoint == 'add_bonus' %}text-emerald-400{% endif %}"></i>
+                        <span class="font-medium">Thêm Điểm Cộng</span>
+                    </a>
                 </div>
             </div>
+            {% endif %}
 
             <div>
                 <p class="px-3 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Hệ Thống</p>
@@ -209,14 +217,58 @@
                             class="fas fa-gavel mr-3 group-hover:text-indigo-400 {% if request.endpoint == 'manage_rules' %}text-indigo-400{% endif %}"></i>
                         <span class="font-medium">Quy Định & Điểm Trừ</span>
                     </a>
+                    <a href="{{ url_for('manage_bonus_types') }}"
+                        class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint == 'manage_bonus_types' or request.endpoint == 'edit_bonus_type' %}active text-white bg-slate-800 border-emerald-500{% endif %}">
+                        <i
+                            class="fas fa-award mr-3 group-hover:text-emerald-400 {% if request.endpoint == 'manage_bonus_types' or request.endpoint == 'edit_bonus_type' %}text-emerald-400{% endif %}"></i>
+                        <span class="font-medium">Loại Điểm Cộng</span>
+                    </a>
+                    <a href="{{ url_for('private_chats') }}"
+                        class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint in ['private_chats', 'private_chat'] %}active text-white bg-slate-800 border-purple-500{% endif %}">
+                        <i
+                            class="fas fa-envelope mr-3 group-hover:text-purple-400 {% if request.endpoint in ['private_chats', 'private_chat'] %}text-purple-400{% endif %}"></i>
+                        <span class="font-medium">Tin Nhắn Riêng</span>
+                    </a>
+                    <a href="{{ url_for('group_chat') }}"
+                        class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint == 'group_chat' %}active text-white bg-slate-800 border-green-500{% endif %}">
+                        <i
+                            class="fas fa-comments mr-3 group-hover:text-green-400 {% if request.endpoint == 'group_chat' %}text-green-400{% endif %}"></i>
+                        <span class="font-medium">Phòng Chat Chung</span>
+                    </a>
                     <a href="{{ url_for('chatbot') }}"
                         class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint == 'chatbot' %}active text-white bg-slate-800 border-indigo-500{% endif %}">
                         <i
                             class="fas fa-robot mr-3 group-hover:text-indigo-400 {% if request.endpoint == 'chatbot' %}text-indigo-400{% endif %}"></i>
-                        <span class="font-medium">Trợ Lý Ảo (Chatbot)</span>
+                        <span class="font-medium">Chatbot Tra Cứu HS</span>
+                    </a>
+                    <a href="{{ url_for('assistant_chatbot') }}"
+                        class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint == 'assistant_chatbot' %}active text-white bg-slate-800 border-teal-500{% endif %}">
+                        <i
+                            class="fas fa-graduation-cap mr-3 group-hover:text-teal-400 {% if request.endpoint == 'assistant_chatbot' %}text-teal-400{% endif %}"></i>
+                        <span class="font-medium">Trợ Lý Đa Năng</span>
                     </a>
                 </div>
             </div>
+
+            {% if is_admin %}
+            <div>
+                <p class="px-3 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Quản Trị</p>
+                <div class="space-y-1">
+                    <a href="{{ url_for('manage_teachers') }}"
+                        class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint in ['manage_teachers', 'add_teacher', 'edit_teacher'] %}active text-white bg-slate-800 border-red-500{% endif %}">
+                        <i
+                            class="fas fa-users-cog mr-3 group-hover:text-red-400 {% if request.endpoint in ['manage_teachers', 'add_teacher', 'edit_teacher'] %}text-red-400{% endif %}"></i>
+                        <span class="font-medium">Quản Lý Giáo Viên</span>
+                    </a>
+                    <a href="{{ url_for('send_notification') }}"
+                        class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint == 'send_notification' %}active text-white bg-slate-800 border-indigo-500{% endif %}">
+                        <i
+                            class="fas fa-bell mr-3 group-hover:text-indigo-400 {% if request.endpoint == 'send_notification' %}text-indigo-400{% endif %}"></i>
+                        <span class="font-medium">Gửi Thông Báo</span>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
         </nav>
 
         {% if current_user.is_authenticated %}
@@ -228,7 +280,7 @@
                 </div>
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-white truncate">{{ current_user.full_name }}</p>
-                    <p class="text-xs text-slate-500 truncate">Giáo viên</p>
+                    <p class="text-xs text-slate-500 truncate">{{ role_display }}</p>
                 </div>
                 <a href="{{ url_for('logout') }}" class="text-slate-400 hover:text-red-400 transition-colors"
                     title="Đăng xuất">
@@ -265,6 +317,22 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Notification Bell -->
+            <a href="{{ url_for('notifications') }}"
+                class="relative p-2 text-slate-400 hover:text-indigo-600 transition group">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {% set unread_count = current_user.notifications | selectattr('is_read', 'equalto', False) | list |
+                length %}
+                {% if unread_count > 0 %}
+                <span
+                    class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg animate-pulse">
+                    {{ unread_count if unread_count < 10 else '9+' }} </span>
+                        {% endif %}
+            </a>
 
             <div class="hidden md:block font-medium text-slate-500">
                 Hệ Thống Đánh Giá Điểm Rèn Luyện Học Sinh

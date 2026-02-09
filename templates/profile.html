@@ -9,9 +9,11 @@
                 <h3 class="text-lg leading-6 font-medium text-gray-900">Hồ Sơ Cá Nhân</h3>
                 <p class="mt-1 max-w-2xl text-sm text-gray-500">Thông tin tài khoản giáo viên.</p>
             </div>
+            {% if is_admin %}
             <a href="{{ url_for('edit_profile') }}" class="text-indigo-600 hover:text-indigo-900 font-medium">
                 ✏️ Chỉnh Sửa
             </a>
+            {% endif %}
         </div>
         <div class="border-t border-gray-200">
             <dl>

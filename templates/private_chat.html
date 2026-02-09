@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Chat với {{ other.full_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto h-[calc(100vh-12rem)] flex flex-col">
+    <div class="mb-4 flex items-center gap-4">
+        <a href="{{ url_for('private_chats') }}" class="text-indigo-600 hover:text-indigo-700 font-medium">
+            <i class="fas fa-arrow-left mr-2"></i> Quay lại
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">{{ other.full_name }}</h1>
+            <p class="text-sm text-slate-600">{{ other.role_display }}</p>
+        </div>
+    </div>
+
+    <!-- Chat Container -->
+    <div class="flex-1 bg-white rounded-xl shadow-lg border border-slate-200 flex flex-col overflow-hidden">
+        <!-- Messages Area -->
+        <div id="messages-container" class="flex-1 overflow-y-auto p-6 space-y-4">
+            {% for msg in messages %}
+            <div class="flex {% if msg.sender_id == current_user.id %}justify-end{% else %}justify-start{% endif %}">
+                <div class="max-w-md">
+                    <div
+                        class="flex items-center gap-2 mb-1 {% if msg.sender_id == current_user.id %}justify-end{% endif %}">
+                        <span class="text-xs font-medium text-slate-600">
+                            {% if msg.sender_id == current_user.id %}Bạn{% else %}{{ msg.sender.full_name }}{% endif %}
+                        </span>
+                        <span class="text-xs text-slate-400">{{ msg.created_at.strftime('%H:%M %d/%m') }}</span>
+                    </div>
+                    <div
+                        class="px-4 py-2 rounded-lg {% if msg.sender_id == current_user.id %}bg-indigo-600 text-white{% else %}bg-slate-100 text-slate-800{% endif %}">
+                        <p class="break-words">{{ msg.message }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Input Area -->
+        <div class="border-t border-slate-200 p-4">
+            <div class="flex gap-3">
+                <input type="text" id="message-input" placeholder="Nhập tin nhắn..."
+                    class="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    onkeypress="if(event.key === 'Enter') sendMessage()">
+                <button onclick="sendMessage()"
+                    class="px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition">
+                    <i class="fas fa-paper-plane mr-2"></i> Gửi
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const OTHER_ID = {{ other.id }};
+    const CURRENT_USER_ID = {{ current_user.id }};
+    let lastMessageId = {{ messages[-1].id if messages else 0 }};
+
+    function scrollToBottom() {
+        const container = document.getElementById('messages-container');
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('message-input');
+        const message = input.value.trim();
+
+        if (!message) return;
+
+        fetch('/api/private_chat/send', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                receiver_id: OTHER_ID,
+                message: message
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    input.value = '';
+                    appendMessage(data.message, true);
+                    scrollToBottom();
+                } else {
+                    alert('Lỗi: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Không thể gửi tin nhắn!');
+            });
+    }
+
+    function appendMessage(msg, isOwn) {
+        const container = document.getElementById('messages-container');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `flex ${isOwn ? 'justify-end' : 'justify-start'}`;
+
+        messageDiv.innerHTML = `
+        <div class="max-w-md">
+            <div class="flex items-center gap-2 mb-1 ${isOwn ? 'justify-end' : ''}">
+                <span class="text-xs font-medium text-slate-600">${isOwn ? 'Bạn' : msg.sender_name}</span>
+                <span class="text-xs text-slate-400">${msg.created_at}</span>
+            </div>
+            <div class="px-4 py-2 rounded-lg ${isOwn ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-800'}">
+                <p class="break-words">${msg.message}</p>
+            </div>
+        </div>
+    `;
+
+        container.appendChild(messageDiv);
+        lastMessageId = msg.id;
+    }
+
+    function fetchNewMessages() {
+        fetch(`/api/private_chat/messages/${OTHER_ID}`)
+            .then(response => response.json())
+            .then(data => {
+                const newMessages = data.messages.filter(m => m.id > lastMessageId);
+                newMessages.forEach(msg => {
+                    appendMessage(msg, msg.sender_id === CURRENT_USER_ID);
+                });
+                if (newMessages.length > 0) {
+                    scrollToBottom();
+                }
+            })
+            .catch(error => console.error('Error fetching messages:', error));
+    }
+
+    // Scroll to bottom on load
+    window.addEventListener('load', scrollToBottom);
+
+    // Auto-refresh every 3 seconds
+    setInterval(fetchNewMessages, 3000);
+</script>
+{% endblock %}

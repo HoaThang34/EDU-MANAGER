@@ -16,18 +16,11 @@
         
         <h1 class="text-2xl font-bold text-slate-800 mb-2">Nhập Danh Sách Học Sinh</h1>
         <p class="text-slate-500 mb-6">
-            Tải lên file Excel chứa danh sách lớp. <br>
-            Hệ thống sẽ tự động sinh mã theo định dạng: <b>[Khóa] [Chuyên] - 001[STT]</b>
+            Tải lên file Excel chứa danh sách học sinh. <br>
+            File cần có 3 cột: <b>Mã học sinh</b>, <b>Họ và tên</b>, <b>Lớp</b>
         </p>
         
         <form method="POST" enctype="multipart/form-data" class="space-y-6 text-left">
-            
-            <div>
-                <label class="block text-sm font-bold text-slate-700 mb-2">Nhập Khóa (VD: 34)</label>
-                <input type="text" name="course_code" required placeholder="34" value="34"
-                       class="block w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-            </div>
-
             <div>
                 <label class="block text-sm font-bold text-slate-700 mb-2">Chọn file Excel</label>
                 <label class="block w-full cursor-pointer">
@@ -43,13 +36,18 @@
             </div>
             
             <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow-lg transition">
-                <i class="fas fa-magic mr-2"></i> Tải Lên & Sinh Mã Tự Động
+                <i class="fas fa-upload mr-2"></i> Tải Lên & Xem Trước
             </button>
         </form>
 
         <div class="mt-6 p-4 bg-slate-50 rounded border border-slate-200 text-xs text-slate-500 text-left">
-            <b>Lưu ý file Excel:</b> Chỉ cần 2 cột là <b>Họ tên</b> và <b>Lớp</b>. <br>
-            Ví dụ: <i>Nguyễn Văn A | 12 Tin</i>
+            <b>Yêu cầu file Excel:</b><br>
+            <ul class="list-disc list-inside mt-2 space-y-1">
+                <li>Cột <b>Mã học sinh</b>: Mã số định danh (VD: 36 ANHA - 001001)</li>
+                <li>Cột <b>Họ và tên</b>: Tên đầy đủ học sinh</li>
+                <li>Cột <b>Lớp</b>: Tên lớp (VD: 10 Anh A)</li>
+            </ul>
+            <p class="mt-2 text-indigo-600"><i class="fas fa-download mr-1"></i> <a href="{{ url_for('download_student_template') }}" class="underline hover:no-underline">Tải file mẫu</a></p>
         </div>
     </div>
 </div>

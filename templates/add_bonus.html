@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Thêm Điểm Cộng{% endblock %}
+
+{% block content %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<style>
+    .select2-container .select2-selection--multiple {
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 0.5rem !important;
+        min-height: 45px;
+        padding: 6px;
+        background-color: white;
+    }
+
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        background-color: #d1fae5;
+        border: 1px solid #6ee7b7;
+        color: #065f46;
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-weight: 600;
+        margin-top: 4px;
+        margin-right: 6px;
+    }
+
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+        color: #065f46;
+        border-right: 1px solid #6ee7b7;
+        margin-right: 6px;
+        padding-right: 6px;
+    }
+
+    .select2-container--default.select2-container--focus .select2-selection--multiple {
+        border-color: #10b981 !important;
+        box-shadow: 0 0 0 1px #10b981;
+        outline: none;
+    }
+
+    .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+        background-color: #10b981;
+        color: white;
+    }
+</style>
+
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-slate-800">🌟 Thêm Điểm Cộng</h1>
+        <p class="text-slate-500">Ghi nhận thành tích, tiến bộ hoặc tham gia cuộc thi của học sinh.</p>
+    </div>
+
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <form method="POST" action="{{ url_for('add_bonus') }}" class="space-y-5">
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Chọn Học Sinh:</label>
+                <select name="student_ids[]" multiple="multiple" id="student-select-bonus" class="w-full"
+                    style="width: 100%" required>
+                    {% for s in students %}
+                    <option value="{{ s.id }}">
+                        {{ s.student_code }} - {{ s.name }} ({{ s.student_class }})
+                    </option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-slate-400 mt-1">
+                    <i class="fas fa-info-circle"></i> Gõ tên, mã số hoặc lớp để lọc. Có thể chọn nhiều học sinh.
+                </p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Loại Điểm Cộng</label>
+                <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 max-h-64 overflow-y-auto space-y-2">
+                    {% for bonus in bonus_types %}
+                    <label class="flex items-center p-2 hover:bg-white rounded-lg cursor-pointer transition group">
+                        <input type="checkbox" name="bonus_ids[]" value="{{ bonus.id }}"
+                            class="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer">
+                        <span class="ml-3 text-sm font-medium text-slate-700 group-hover:text-emerald-600 flex-1">
+                            {{ bonus.name }}
+                        </span>
+                        <span class="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded">
+                            +{{ bonus.points_added }}đ
+                        </span>
+                    </label>
+                    {% else %}
+                    <p class="text-center text-gray-400 py-4">
+                        Chưa có loại điểm cộng.
+                        <a href="{{ url_for('manage_bonus_types') }}" class="text-emerald-600 underline">Thêm ngay</a>
+                    </p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div>
+                <label for="reason" class="block text-sm font-medium text-slate-700 mb-1">Lý Do Cụ Thể (Tùy
+                    chọn):</label>
+                <input type="text" name="reason" id="reason" placeholder="VD: Giải Nhì HSG Toán cấp Tỉnh năm 2024"
+                    class="block w-full rounded-lg border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500">
+                <p class="text-xs text-slate-400 mt-1">
+                    <i class="fas fa-lightbulb"></i> Ghi chi tiết lý do để lưu vào hồ sơ học sinh.
+                </p>
+            </div>
+
+            <div class="pt-2">
+                <button type="submit"
+                    class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-md transition-all flex justify-center items-center gap-2">
+                    <i class="fas fa-plus-circle"></i> Ghi Nhận Điểm Cộng
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if bonus_types %}
+    <div class="mt-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                <i class="fas fa-lightbulb"></i>
+            </div>
+            <div>
+                <p class="text-sm font-medium text-emerald-800">Mẹo hay</p>
+                <p class="text-xs text-emerald-600">Điểm cộng sẽ tự động cập nhật vào điểm rèn luyện của học sinh.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    $(document).ready(function () {
+        $('#student-select-bonus').select2({
+            placeholder: "🔍 Nhập tên hoặc mã số để tìm...",
+            allowClear: true,
+            language: {
+                noResults: function () {
+                    return "Không tìm thấy học sinh nào";
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

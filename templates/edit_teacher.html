@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Sửa Giáo Viên{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <a href="{{ url_for('manage_teachers') }}"
+            class="inline-flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition mb-4">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Quay lại danh sách
+        </a>
+        <h1 class="text-2xl font-bold text-slate-800">Chỉnh Sửa Giáo Viên</h1>
+        <p class="text-slate-500 mt-1">Cập nhật thông tin tài khoản <strong>{{ teacher.full_name }}</strong></p>
+    </div>
+
+    <!-- Form -->
+    <div class="bg-white rounded-xl shadow border border-slate-200 p-6">
+        <form action="{{ url_for('edit_teacher', teacher_id=teacher.id) }}" method="POST" class="space-y-5">
+            <!-- Username (readonly) -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">
+                    Tên đăng nhập
+                </label>
+                <input type="text" value="{{ teacher.username }}" readonly disabled
+                    class="w-full px-4 py-3 border border-slate-200 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed">
+                <p class="text-xs text-slate-400 mt-1">Username không thể thay đổi</p>
+            </div>
+
+            <!-- Password -->
+            <div>
+                <label for="password" class="block text-sm font-medium text-slate-700 mb-1">
+                    Mật khẩu mới
+                </label>
+                <input type="password" id="password" name="password"
+                    class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    placeholder="Để trống nếu không đổi mật khẩu">
+            </div>
+
+            <!-- Full Name -->
+            <div>
+                <label for="full_name" class="block text-sm font-medium text-slate-700 mb-1">
+                    Họ và tên <span class="text-red-500">*</span>
+                </label>
+                <input type="text" id="full_name" name="full_name" value="{{ teacher.full_name }}" required
+                    class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+            </div>
+
+            <!-- Role -->
+            <div>
+                <label for="role" class="block text-sm font-medium text-slate-700 mb-1">
+                    Vai trò <span class="text-red-500">*</span>
+                </label>
+                <select id="role" name="role" required onchange="toggleAssignment()"
+                    class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                    <option value="homeroom_teacher" {% if teacher.role=='homeroom_teacher' %}selected{% endif %}>Giáo
+                        viên chủ nhiệm</option>
+                    <option value="subject_teacher" {% if teacher.role=='subject_teacher' %}selected{% endif %}>Giáo
+                        viên bộ môn</option>
+                    <option value="admin" {% if teacher.role=='admin' %}selected{% endif %}>Quản trị viên</option>
+                </select>
+            </div>
+
+            <!-- Assigned Class (for Homeroom Teacher) -->
+            <div id="class_assignment" class="{% if teacher.role != 'homeroom_teacher' %}hidden{% endif %}">
+                <label for="assigned_class" class="block text-sm font-medium text-slate-700 mb-1">
+                    Lớp phụ trách
+                </label>
+                <select id="assigned_class" name="assigned_class"
+                    class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                    <option value="">-- Chọn lớp --</option>
+                    {% for c in classes %}
+                    <option value="{{ c.name }}" {% if teacher.assigned_class==c.name %}selected{% endif %}>{{ c.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Assigned Subject (for Subject Teacher) -->
+            <div id="subject_assignment" class="{% if teacher.role != 'subject_teacher' %}hidden{% endif %}">
+                <label for="assigned_subject_id" class="block text-sm font-medium text-slate-700 mb-1">
+                    Môn phụ trách
+                </label>
+                <select id="assigned_subject_id" name="assigned_subject_id"
+                    class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition">
+                    <option value="">-- Chọn môn --</option>
+                    {% for s in subjects %}
+                    <option value="{{ s.id }}" {% if teacher.assigned_subject_id==s.id %}selected{% endif %}>{{ s.name
+                        }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Submit -->
+            <div class="flex gap-3 pt-4">
+                <a href="{{ url_for('manage_teachers') }}"
+                    class="flex-1 py-3 text-center bg-slate-100 text-slate-600 rounded-lg font-medium hover:bg-slate-200 transition">
+                    Hủy
+                </a>
+                <button type="submit"
+                    class="flex-1 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition">
+                    Lưu Thay Đổi
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function toggleAssignment() {
+        const role = document.getElementById('role').value;
+        const classDiv = document.getElementById('class_assignment');
+        const subjectDiv = document.getElementById('subject_assignment');
+
+        if (role === 'homeroom_teacher') {
+            classDiv.classList.remove('hidden');
+            subjectDiv.classList.add('hidden');
+        } else if (role === 'subject_teacher') {
+            classDiv.classList.add('hidden');
+            subjectDiv.classList.remove('hidden');
+        } else {
+            classDiv.classList.add('hidden');
+            subjectDiv.classList.add('hidden');
+        }
+    }
+</script>
+{% endblock %}

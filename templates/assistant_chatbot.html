@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Trợ Lý Đa Năng{% endblock %}
+
+{% block content %}
+<div
+    class="h-[85vh] flex flex-col bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 max-w-4xl mx-auto">
+    <div class="bg-teal-600 p-4 flex items-center justify-between text-white shadow-md z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-teal-600 shadow-inner">
+                <i class="fas fa-graduation-cap text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight">Trợ Lý Đa Năng</h1>
+                <p class="text-teal-200 text-xs flex items-center gap-1">
+                    <span class="w-2 h-2 bg-green-400 rounded-full"></span> Trực tuyến
+                </p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="location.reload()" class="text-teal-200 hover:text-white transition" title="Tải lại trang">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="chat-log" class="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50">
+        <div class="flex items-start gap-3">
+            <div
+                class="w-8 h-8 rounded-full bg-teal-100 flex-shrink-0 flex items-center justify-center text-teal-600 text-sm font-bold">
+                AI</div>
+            <div
+                class="bg-white p-3.5 rounded-2xl rounded-tl-none shadow-sm text-slate-700 text-sm max-w-[80%] border border-slate-100">
+                Chào cô/thầy! 🎓 Em có thể giúp cô/thầy:
+                <br><br>
+                📚 <b>Nội quy nhà trường</b>: Tra cứu quy định, vi phạm, mức phạt
+                <br>
+                💬 <b>Cách ứng xử</b>: Tư vấn xử lý tình huống học sinh
+                <br>
+                ✍️ <b>Trợ giúp công việc</b>: Soạn nhận xét, phương pháp giáo dục
+                <br><br>
+                Cô/thầy cứ hỏi em nhé! 😊
+            </div>
+        </div>
+    </div>
+
+    <div class="p-4 bg-white border-t border-slate-200">
+        <form id="chat-form" class="flex items-center gap-2">
+            <input type="text" id="chat-input"
+                class="flex-1 p-3 bg-slate-100 border-transparent rounded-full focus:bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition shadow-inner text-sm"
+                placeholder="Hỏi về nội quy, ứng xử, hoặc nhờ trợ giúp..." autocomplete="off">
+            <button type="submit"
+                class="w-12 h-12 bg-teal-600 text-white rounded-full shadow-md hover:bg-teal-700 hover:shadow-lg transition-all flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-paper-plane text-sm"></i>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const chatLog = document.getElementById('chat-log');
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+
+    chatForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const userMessage = chatInput.value.trim();
+        if (userMessage === '') return;
+
+        appendMessage(userMessage, 'user');
+        chatInput.value = '';
+        sendMessage(userMessage);
+    });
+
+    function sendMessage(message) {
+        // Show loading bubble
+        const loadingId = 'loading-' + Date.now();
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = loadingId;
+        loadingDiv.className = 'flex items-start gap-3';
+        loadingDiv.innerHTML = `
+            <div class="w-8 h-8 rounded-full bg-teal-100 flex-shrink-0 flex items-center justify-center text-teal-600 text-sm font-bold">AI</div>
+            <div class="bg-white p-3.5 rounded-2xl rounded-tl-none shadow-sm border border-slate-100">
+                <div class="flex space-x-1">
+                    <div class="w-2 h-2 bg-slate-300 rounded-full animate-bounce"></div>
+                    <div class="w-2 h-2 bg-slate-300 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    <div class="w-2 h-2 bg-slate-300 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                </div>
+            </div>`;
+        chatLog.appendChild(loadingDiv);
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+        fetch("{{ url_for('api_assistant_chatbot') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message })
+        })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById(loadingId).remove();
+                appendMessage(data.response, 'bot');
+            })
+            .catch(error => {
+                document.getElementById(loadingId).remove();
+                appendMessage('❌ Lỗi kết nối. Vui lòng kiểm tra Ollama đang chạy.', 'bot');
+            });
+    }
+
+    function appendMessage(message, sender) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = sender === 'user' ? 'flex items-end justify-end gap-2' : 'flex items-start gap-3';
+
+        // Avatar for Bot only
+        let avatarHTML = '';
+        if (sender !== 'user') {
+            avatarHTML = `<div class="w-8 h-8 rounded-full bg-teal-100 flex-shrink-0 flex items-center justify-center text-teal-600 text-sm font-bold">AI</div>`;
+        }
+
+        const bubbleClass = sender === 'user'
+            ? 'bg-teal-600 text-white rounded-2xl rounded-br-none shadow-md'
+            : 'bg-white text-slate-700 rounded-2xl rounded-tl-none shadow-sm border border-slate-100';
+
+        // Format Text - hỗ trợ markdown
+        let formattedMsg = message
+            .replace(/\*\*(.*?)\*\*/g, '<b class="font-bold">$1</b>')  // **bold**
+            .replace(/\n/g, '<br>');  // line break
+
+        let contentHTML = `
+            <div class="flex flex-col items-${sender === 'user' ? 'end' : 'start'} max-w-[85%]">
+                <div class="p-3.5 text-sm ${bubbleClass}">${formattedMsg}</div>
+            </div>
+        `;
+
+        messageDiv.innerHTML = sender === 'user' ? (contentHTML) : (avatarHTML + contentHTML);
+        chatLog.appendChild(messageDiv);
+        chatLog.scrollTop = chatLog.scrollHeight;
+    }
+</script>
+{% endblock %}

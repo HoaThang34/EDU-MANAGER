@@ -12,9 +12,10 @@ from io import BytesIO
 from flask import send_file
 import pandas as pd
 import ollama
+from functools import wraps
 
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import func, desc, or_
+from sqlalchemy import func, desc, or_, and_
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -24,7 +25,140 @@ from flask_login import (
     current_user,
 )
 
-from models import db, Student, Violation, ViolationType, Teacher, SystemConfig, ClassRoom, WeeklyArchive, Subject, Grade, ChatConversation
+from models import db, Student, Violation, ViolationType, Teacher, SystemConfig, ClassRoom, WeeklyArchive, Subject, Grade, ChatConversation, BonusType, BonusRecord, Notification, GroupChatMessage, PrivateMessage
+
+
+# === HELPER FUNCTIONS CHO PHÂN QUYỀN ===
+
+def admin_required(f):
+    """Decorator yêu cầu quyền admin để truy cập route"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            flash("Vui lòng đăng nhập!", "error")
+            return redirect(url_for('login'))
+        if current_user.role != 'admin':
+            flash("Bạn không có quyền truy cập chức năng này!", "error")
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def get_role_display(role):
+    """Chuyển đổi role code thành tên hiển thị tiếng Việt"""
+    role_map = {
+        'admin': 'Quản trị viên',
+        'homeroom_teacher': 'Giáo viên chủ nhiệm',
+        'subject_teacher': 'Giáo viên bộ môn'
+    }
+    return role_map.get(role, 'Giáo viên')
+
+def get_accessible_students():
+    """
+    Trả về query Student dựa trên role của current_user
+    - Admin: Tất cả học sinh
+    - GVCN: Chỉ học sinh lớp assigned_class
+    - GVBM: Tất cả học sinh (để chấm điểm)
+    """
+    if not current_user.is_authenticated:
+        return Student.query.filter(Student.id == -1)  # Empty query
+    
+    if current_user.role == 'admin':
+        return Student.query
+    elif current_user.role == 'homeroom_teacher' and current_user.assigned_class:
+        return Student.query.filter_by(student_class=current_user.assigned_class)
+    elif current_user.role == 'subject_teacher':
+        return Student.query  # GVBM có thể xem tất cả HS để chấm điểm
+    return Student.query.filter(Student.id == -1)  # Empty query
+
+def can_access_student(student_id):
+    """Kiểm tra quyền truy cập học sinh cụ thể"""
+    if not current_user.is_authenticated:
+        return False
+    if current_user.role == 'admin':
+        return True
+    student = Student.query.get(student_id)
+    if not student:
+        return False
+    if current_user.role == 'homeroom_teacher':
+        return student.student_class == current_user.assigned_class
+    if current_user.role == 'subject_teacher':
+        return True  # GVBM có thể truy cập tất cả HS để chấm điểm
+    return False
+
+
+def call_ollama(prompt, model="gemini-3-flash-preview:cloud"):
+    """
+    Gọi Ollama API để chat với AI model local
+    Args:
+        prompt: Câu hỏi/prompt gửi cho AI
+        model: Tên model Ollama (mặc định llama3.2)
+    Returns:
+        (response_text, error)
+    """
+    try:
+        response = ollama.chat(
+            model=model,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response['message']['content'], None
+    except Exception as e:
+        return None, f"Lỗi kết nối Ollama: {str(e)}"
+
+def can_access_subject(subject_id):
+    """Kiểm tra quyền truy cập môn học"""
+    if not current_user.is_authenticated:
+        return False
+    if current_user.role == 'admin':
+        return True
+    if current_user.role == 'subject_teacher':
+        return current_user.assigned_subject_id == subject_id
+    if current_user.role == 'homeroom_teacher':
+        return True  # GVCN có thể xem tất cả môn
+    return False
+
+def create_notification(title, message, notification_type, target_role='all', specific_recipient_id=None):
+    """
+    Tạo thông báo mới
+    - target_role: 'all', 'homeroom_teacher', 'subject_teacher', hoặc class name (VD: '12 Tin')
+    - specific_recipient_id: Gửi cho 1 giáo viên cụ thể
+    """
+    if specific_recipient_id:
+        # Gửi cho 1 người cụ thể
+        notif = Notification(
+            title=title,
+            message=message,
+            notification_type=notification_type,
+            created_by=current_user.id if current_user.is_authenticated else None,
+            recipient_id=specific_recipient_id,
+            target_role=target_role
+        )
+        db.session.add(notif)
+    else:
+        # Broadcast: tạo notification cho mỗi giáo viên phù hợp
+        if target_role == 'all':
+            recipients = Teacher.query.all()
+        elif target_role == 'homeroom_teacher':
+            recipients = Teacher.query.filter_by(role='homeroom_teacher').all()
+        elif target_role == 'subject_teacher':
+            recipients = Teacher.query.filter_by(role='subject_teacher').all()
+        else:
+            # Target là class name -> chỉ gửi cho GVCN lớp đó
+            recipients = Teacher.query.filter_by(role='homeroom_teacher', assigned_class=target_role).all()
+        
+        for recipient in recipients:
+            if recipient.id != (current_user.id if current_user.is_authenticated else None):
+                notif = Notification(
+                    title=title,
+                    message=message,
+                    notification_type=notification_type,
+                    created_by=current_user.id if current_user.is_authenticated else None,
+                    recipient_id=recipient.id,
+                    target_role=target_role
+                )
+                db.session.add(notif)
+    
+    db.session.commit()
+
 
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -64,7 +198,20 @@ def inject_global_data():
     except:
         current_week = 1
         classes = []
-    return dict(current_week_number=current_week, all_classes=classes)
+    
+    # Inject role info cho templates
+    role_display = ''
+    is_admin = False
+    if current_user.is_authenticated:
+        role_display = get_role_display(getattr(current_user, 'role', 'homeroom_teacher'))
+        is_admin = getattr(current_user, 'role', None) == 'admin'
+    
+    return dict(
+        current_week_number=current_week, 
+        all_classes=classes,
+        role_display=role_display,
+        is_admin=is_admin
+    )
 
 
 def normalize_student_code(code):
@@ -452,7 +599,7 @@ def logout():
 def index():
     search = request.args.get('search', '').strip()
     selected_class = request.args.get('class_select', '').strip()
-    q = Student.query
+    q = get_accessible_students()  # Filter by role
     if selected_class: q = q.filter_by(student_class=selected_class)
     if search: q = q.filter(or_(Student.name.ilike(f"%{search}%"), Student.student_code.ilike(f"%{search}%")))
     students = q.order_by(Student.student_code.asc()).all()
@@ -526,13 +673,19 @@ def dashboard():
     
     s_class = request.args.get("class_select")
     
-    # 2. Thống kê điểm số (Của hiện tại)
-    q = Student.query.filter_by(student_class=s_class) if s_class else Student.query
+    # 2. Thống kê điểm số (Filter by role)
+    # Nếu GVCN và không chọn lớp cụ thể, tự động filter assigned_class
+    if not s_class and current_user.role == 'homeroom_teacher' and current_user.assigned_class:
+        s_class = current_user.assigned_class
+    
+    q = get_accessible_students()  # Already filtered by role
+    if s_class: 
+        q = q.filter_by(student_class=s_class)
     c_tot = q.filter(Student.current_score >= 90).count()
     c_kha = q.filter(Student.current_score >= 70, Student.current_score < 90).count()
     c_tb = q.filter(Student.current_score < 70).count()
     
-    # 3. Thống kê lỗi (CHỈ LẤY CỦA TUẦN HIỆN TẠI) -> Đây là mấu chốt để "reset" visual
+    # 3. Thống kê lỗi (CHỈ LẤY CỦA TUẦN HIỆN TẠI)
     vios_q = db.session.query(Violation.violation_type_name, func.count(Violation.violation_type_name).label("c"))
     
     # Lọc theo tuần hiện tại
@@ -744,14 +897,34 @@ def add_violation():
 
         if count > 0:
             db.session.commit()
+            
+            # Tạo thông báo cho GVCN các lớp bị ảnh hưởng
+            affected_classes = set()
+            if selected_student_ids:
+                for s_id in selected_student_ids:
+                    student = db.session.get(Student, int(s_id))
+                    if student and student.student_class:
+                        affected_classes.add(student.student_class)
+            
+            for class_name in affected_classes:
+                try:
+                    create_notification(
+                        title=f"⚠️ Vi phạm mới - Lớp {class_name}",
+                        message=f"{current_user.full_name} đã ghi nhận {count} vi phạm cho học sinh lớp {class_name}",
+                        notification_type='violation',
+                        target_role=class_name
+                    )
+                except:
+                    pass  # Không để lỗi notification làm gián đoạn chức năng chính
+            
             flash(f"Đã ghi nhận {count} vi phạm (cho {len(selected_student_ids) if selected_student_ids else 'nhiều'} học sinh x {len(selected_rule_ids)} lỗi).", "success")
         else:
             flash("Chưa chọn học sinh nào hoặc xảy ra lỗi.", "error")
         
         return redirect(url_for("add_violation"))
 
-    # GET: Truyền thêm danh sách học sinh để hiển thị trong Dropdown
-    students = Student.query.order_by(Student.student_class, Student.name).all()
+    # GET: Truyền thêm danh sách học sinh để hiển thị trong Dropdown (filtered by role)
+    students = get_accessible_students().order_by(Student.student_class, Student.name).all()
     return render_template("add_violation.html", rules=ViolationType.query.all(), students=students)
 
 
@@ -974,8 +1147,8 @@ def batch_violation(): return redirect(url_for('add_violation'))
 @app.route("/manage_students")
 @login_required
 def manage_students():
-    # Lấy danh sách học sinh
-    students = Student.query.order_by(Student.student_code.asc()).all()
+    # Lấy danh sách học sinh (filtered by role)
+    students = get_accessible_students().order_by(Student.student_code.asc()).all()
     class_list = ClassRoom.query.order_by(ClassRoom.name).all()
     return render_template("manage_students.html", students=students, class_list=class_list)
 
@@ -1130,13 +1303,27 @@ def api_chatbot():
     # 3. Save user message to database
     save_message(session_id, teacher_id, "user", msg)
     
-    # 4. Tìm kiếm học sinh từ CSDL (hỗ trợ cả context từ history)
-    s_list = Student.query.filter(
+    # 4. Tìm kiếm học sinh từ CSDL
+    # Detect class name from message (e.g., "11 Tin", "12A", etc.)
+    class_filter = None
+    import re
+    class_pattern = re.search(r'lớp\s*(\d+\s*[A-Za-z]+\d*|\d+)', msg, re.IGNORECASE)
+    if class_pattern:
+        class_filter = class_pattern.group(1).strip()
+    
+    # Build query
+    query = Student.query.filter(
         or_(
             Student.name.ilike(f"%{msg}%"), 
             Student.student_code.ilike(f"%{msg}%")
         )
-    ).limit(5).all()
+    )
+    
+    # Add class filter if detected
+    if class_filter:
+        query = query.filter(Student.student_class.ilike(f"%{class_filter}%"))
+    
+    s_list = query.limit(10).all()
     
     # Nếu tìm thấy học sinh
     if s_list:
@@ -1216,128 +1403,47 @@ def api_chatbot():
                     'date': v.date_committed.strftime('%d/%m/%Y')
                 })
         
-        # Tạo context cho AI với conversation history
-        student_context = f"""THÔNG TIN HỌC SINH:
-- Họ tên: {student.name}
-- Mã số: {student.student_code}
-- Lớp: {student.student_class}
-- Điểm hành vi hiện tại: {student.current_score}/100
-
-ĐIỂM HỌC TẬP (Học kỳ 1):
-"""
+        # Tạo response có cấu trúc
+        response = f"**📊 Thông tin học sinh: {student.name}**\n\n"
+        response += f"• **Mã số:** {student.student_code}\n"
+        response += f"• **Lớp:** {student.student_class}\n"
+        response += f"• **Điểm hành vi:** {student.current_score}/100\n\n"
+        
         if grades_data:
+            response += "**📚 Điểm học tập (HK1):**\n"
             for subject, scores in grades_data.items():
-                student_context += f"- {subject}: TX={scores['TX']}, GK={scores['GK']}, HK={scores['HK']}, TB={scores['TB']}\n"
+                response += f"• {subject}: TX={scores['TX']}, GK={scores['GK']}, HK={scores['HK']}, TB={scores['TB']}\n"
         else:
-            student_context += "- Chưa có dữ liệu điểm\n"
+            response += "**📚 Điểm học tập:** Chưa có dữ liệu\n"
         
-        student_context += f"\nVI PHẠM:\n"
         if violations_data:
-            student_context += f"- Tổng số: {len(violations)} lần\n"
-            student_context += "- Chi tiết gần nhất:\n"
+            response += f"\n**⚠️ Vi phạm:** {len(violations)} lần\n"
+            response += "Chi tiết gần nhất:\n"
             for v in violations_data:
-                student_context += f"  + {v['type']} (-{v['points']}đ) - {v['date']}\n"
+                response += f"• {v['date']}: {v['type']} (-{v['points']} điểm)\n"
         else:
-            student_context += "- Không có vi phạm\n"
+            response += "\n**⚠️ Vi phạm:** Không có\n"
         
-        # Build context-aware prompt với conversation history
-        prompt = f"""{CHATBOT_SYSTEM_PROMPT}
-
-===== LỊCH SỬ HỘI THOẠI =====
-"""
-        if history:
-            for h in history:
-                role_vn = "Giáo viên" if h['role'] == 'user' else "Trợ lý"
-                prompt += f"{role_vn}: {h['content']}\n"
+        save_message(session_id, teacher_id, "assistant", response)
         
-        prompt += f"""
-===== THÔNG TIN HỌC SINH ĐƯỢC TRA CỨU =====
-{student_context}
-
-===== CÂU HỎI HIỆN TẠI =====
-Giáo viên: {msg}
-
-===== YÊU CẦU =====
-Dựa trên lịch sử hội thoại và thông tin học sinh, hãy:
-1. Tham chiếu lại các thông tin đã thảo luận trước đó (nếu có)
-2. Phân tích học sinh một cách toàn diện
-3. Trả lời câu hỏi của giáo viên một cách tự nhiên, có ngữ cảnh
-
-Trả lời bằng tiếng Việt, thân thiện, chuyên nghiệp. Sử dụng emoji phù hợp và định dạng markdown.
-Lưu ý: Không nhắc tới học sinh khác ngoài học sinh đang được nhận xét trong câu trả lời.
-"""
+        buttons = [
+            {"label": "📊 Xem học bạ", "payload": f"/student/{student.id}/transcript"},
+            {"label": "📈 Chi tiết điểm", "payload": f"/student/{student.id}"},
+            {"label": "📜 Lịch sử vi phạm", "payload": f"/student/{student.id}/violations_timeline"}
+        ]
         
-        ai_response, err = _call_gemini(prompt)
-        
-        if ai_response:
-            # Save AI response
-            save_message(session_id, teacher_id, "assistant", ai_response, 
-                        context_data={"student_id": student.id, "student_name": student.name})
-            
-            # Tạo các nút hành động
-            buttons = [
-                {"label": "📊 Xem học bạ", "payload": f"/student/{student.id}/transcript"},
-                {"label": "📈 Chi tiết điểm", "payload": f"/student/{student.id}"},
-                {"label": "📜 Lịch sử vi phạm", "payload": f"/student/{student.id}/violations_timeline"}
-            ]
-            
-            return jsonify({"response": ai_response.strip(), "buttons": buttons})
-        else:
-            # Fallback nếu AI lỗi - hiển thị dữ liệu raw
-            response = f"**📋 Thông tin học sinh**\n\n"
-            response += f"**Họ tên:** {student.name}\n"
-            response += f"**Mã số:** {student.student_code}\n"
-            response += f"**Lớp:** {student.student_class}\n"
-            response += f"**Điểm hành vi:** {student.current_score}/100\n\n"
-            
-            if grades_data:
-                response += "**📚 Điểm học tập (HK1):**\n"
-                for subject, scores in grades_data.items():
-                    response += f"• {subject}: TX={scores['TX']}, GK={scores['GK']}, HK={scores['HK']}, TB={scores['TB']}\n"
-                response += "\n"
-            
-            if violations_data:
-                response += f"**⚠️ Vi phạm:** {len(violations)} lần\n"
-                response += "**Gần nhất:**\n"
-                for v in violations_data[:3]:
-                    response += f"• {v['type']} (-{v['points']}đ) - {v['date']}\n"
-            else:
-                response += "**✅ Không có vi phạm**\n"
-            
-            save_message(session_id, teacher_id, "assistant", response)
-            
-            buttons = [
-                {"label": "📊 Xem học bạ", "payload": f"/student/{student.id}/transcript"},
-                {"label": "📈 Chi tiết điểm", "payload": f"/student/{student.id}"},
-                {"label": "📜 Lịch sử vi phạm", "payload": f"/student/{student.id}/violations_timeline"}
-            ]
-            
-            return jsonify({"response": response.strip(), "buttons": buttons})
+        return jsonify({"response": response.strip(), "buttons": buttons})
     
-    # Nếu không tìm thấy học sinh, sử dụng AI với context awareness
-    prompt = f"""{CHATBOT_SYSTEM_PROMPT}
-
-===== LỊCH SỬ HỘI THOẠI =====
-"""
-    if history:
-        for h in history:
-            role_vn = "Giáo viên" if h['role'] == 'user' else "Trợ lý"
-            prompt += f"{role_vn}: {h['content']}\n"
+    # Nếu không tìm thấy học sinh
+    if class_filter:
+        response_text = f"Hiện tại, hệ thống **không tìm thấy** học sinh nào có tên là **{msg}** trong **lớp {class_filter}** 🔍\n\n"
+    else:
+        response_text = f"Hiện tại, hệ thống **không tìm thấy** học sinh nào có tên là **{msg}** 🔍\n\n"
     
-    prompt += f"""
-===== CÂU HỎI HIỆN TẠI =====
-Giáo viên: {msg}
-
-===== YÊU CẦU =====
-Bạn là trợ lý ảo của hệ thống quản lý học sinh. 
-- Dựa vào lịch sử hội thoại, hiểu ngữ cảnh và trả lời phù hợp
-- Nếu giáo viên hỏi về học sinh nhưng không tìm thấy, đề nghị nhập tên chính xác hơn
-- Nếu hỏi về chức năng hệ thống, giải thích rõ ràng
-- Trả lời ngắn gọn, thân thiện, sử dụng emoji và markdown
-"""
-    
-    ans, err = _call_gemini(prompt)
-    response_text = ans or "Xin lỗi, tôi chưa hiểu câu hỏi của bạn. Bạn có thể nhập tên hoặc mã số học sinh để tra cứu thông tin."
+    response_text += "Cô/thầy vui lòng:\n"
+    response_text += "• Kiểm tra lại **chính tả** hoặc đầu của họ tên (VD: Hòa hay Hóa).\n"
+    response_text += "• Hoặc thử nhập **Mã số học sinh** để tra cứu chính xác hơn!\n\n"
+    response_text += "Em luôn sẵn sàng hỗ trợ cô/thầy tiếp tục a. 😊"
     
     # Save AI response
     save_message(session_id, teacher_id, "assistant", response_text)
@@ -1358,6 +1464,7 @@ def profile(): return render_template("profile.html", user=current_user)
 
 @app.route("/edit_profile", methods=["GET", "POST"])
 @login_required
+@admin_required
 def edit_profile():
     if request.method == "POST":
         return redirect(url_for("profile"))
@@ -1611,13 +1718,20 @@ def export_report():
 @app.route("/student/<int:student_id>")
 @login_required
 def student_detail(student_id):
+    # Kiểm tra quyền truy cập học sinh
+    if not can_access_student(student_id):
+        flash("Bạn không có quyền xem học sinh này!", "error")
+        return redirect(url_for('dashboard'))
+    
     student = db.session.get(Student, student_id)
     if not student:
         flash("Học sinh không tồn tại.", "error")
         return redirect(url_for('manage_students'))
 
-    # 1. Lấy danh sách các tuần có dữ liệu
-    weeks = [w[0] for w in db.session.query(Violation.week_number).distinct().order_by(Violation.week_number.desc()).all()]
+    # 1. Lấy danh sách các tuần có dữ liệu (từ cả violations và bonuses)
+    violation_weeks = [w[0] for w in db.session.query(Violation.week_number).distinct().all()]
+    bonus_weeks = [w[0] for w in db.session.query(BonusRecord.week_number).distinct().all()]
+    weeks = sorted(set(violation_weeks + bonus_weeks), reverse=True)
     
     # 2. Xác định tuần được chọn (Mặc định là tuần hiện tại của hệ thống)
     w_cfg = SystemConfig.query.filter_by(key="current_week").first()
@@ -1631,25 +1745,37 @@ def student_detail(student_id):
     violations = Violation.query.filter_by(student_id=student_id, week_number=selected_week)\
         .order_by(Violation.date_committed.asc()).all()
 
-    # 4. Tính toán dữ liệu biểu đồ (Reset về 100 mỗi đầu tuần)
-    # Điểm khởi đầu
+    # 4. Lấy điểm cộng CHỈ CỦA TUẦN ĐÓ
+    bonuses = BonusRecord.query.filter_by(student_id=student_id, week_number=selected_week)\
+        .order_by(BonusRecord.date_awarded.asc()).all()
+
+    # 5. Tính toán dữ liệu biểu đồ (Reset về 100 mỗi đầu tuần)
     chart_labels = ["Đầu tuần"]
     chart_scores = [100]
     
-    current_score = 100
-    total_deducted = 0
-
+    # Kết hợp violations và bonuses theo thời gian
+    events = []
     for v in violations:
-        current_score -= v.points_deducted
-        total_deducted += v.points_deducted
-        
-        # Thêm điểm vào biểu đồ
-        date_str = v.date_committed.strftime('%d/%m')
+        events.append({'type': 'violation', 'date': v.date_committed, 'points': -v.points_deducted, 'name': v.violation_type_name})
+    for b in bonuses:
+        events.append({'type': 'bonus', 'date': b.date_awarded, 'points': b.points_added, 'name': b.bonus_type_name})
+    
+    # Sắp xếp theo thời gian
+    events.sort(key=lambda x: x['date'])
+    
+    current_score = 100
+    for event in events:
+        current_score += event['points']  # -points cho violation, +points cho bonus
+        date_str = event['date'].strftime('%d/%m')
         chart_labels.append(date_str)
         chart_scores.append(current_score)
     
+    # Tính tổng
+    total_deducted = sum(v.points_deducted for v in violations)
+    total_added = sum(b.points_added for b in bonuses)
+    
     # Điểm hiển thị trên thẻ (Score Card)
-    display_score = 100 - total_deducted
+    display_score = 100 - total_deducted + total_added
 
     # Cảnh báo nếu điểm thấp
     warning = None
@@ -1661,9 +1787,11 @@ def student_detail(student_id):
                            weeks=weeks,
                            selected_week=selected_week,
                            violations=violations,
+                           bonuses=bonuses,
                            chart_labels=json.dumps(chart_labels),
                            chart_scores=json.dumps(chart_scores),
-                           display_score=display_score, # Truyền điểm đã tính của tuần này
+                           display_score=display_score,
+                           total_added=total_added,
                            warning=warning)
 
 
@@ -1804,7 +1932,7 @@ def manage_grades():
     search = request.args.get('search', '').strip()
     selected_class = request.args.get('class_select', '').strip()
     
-    q = Student.query
+    q = get_accessible_students()  # Filter by role
     if selected_class:
         q = q.filter_by(student_class=selected_class)
     if search:
@@ -1820,6 +1948,11 @@ def manage_grades():
 @login_required
 def student_grades(student_id):
     """Xem và nhập điểm cho học sinh"""
+    # Kiểm tra quyền truy cập học sinh
+    if not can_access_student(student_id):
+        flash("Bạn không có quyền xem học sinh này!", "error")
+        return redirect(url_for('dashboard'))
+    
     student = db.session.get(Student, student_id)
     if not student:
         flash("Không tìm thấy học sinh!", "error")
@@ -1835,6 +1968,11 @@ def student_grades(student_id):
         
         if not all([subject_id, grade_type, score]):
             flash("Vui lòng điền đầy đủ thông tin!", "error")
+            return redirect(url_for("student_grades", student_id=student_id))
+        
+        # Kiểm tra quyền sửa môn học
+        if not can_access_subject(int(subject_id)):
+            flash("Bạn không có quyền sửa điểm môn này!", "error")
             return redirect(url_for("student_grades", student_id=student_id))
         
         try:
@@ -1872,6 +2010,20 @@ def student_grades(student_id):
             flash("Đã thêm điểm!", "success")
         
         db.session.commit()
+        
+        # Thông báo cho GVCN lớp
+        try:
+            if student.student_class:
+                subject = db.session.get(Subject, int(subject_id))
+                create_notification(
+                    title=f"📊 Điểm mới - {student.name}",
+                    message=f"{current_user.full_name} đã nhập điểm {subject.name if subject else 'môn học'} cho {student.name} (Lớp {student.student_class})",
+                    notification_type='grade',
+                    target_role=student.student_class
+                )
+        except:
+            pass  # Không để lỗi notification làm gián đoạn
+        
         return redirect(url_for("student_grades", student_id=student_id))
     
     subjects = Subject.query.order_by(Subject.name).all()
@@ -1896,13 +2048,17 @@ def student_grades(student_id):
                 subject_grades[grade.grade_type][grade.column_index] = grade
         grades_by_subject[subject.id] = subject_grades
     
+    # Truyền assigned_subject_id để disable input field trong template
+    assigned_subject_id = current_user.assigned_subject_id if current_user.role == 'subject_teacher' else None
+    
     return render_template(
         "student_grades.html",
         student=student,
         subjects=subjects,
         grades_by_subject=grades_by_subject,
         semester=semester,
-        school_year=school_year
+        school_year=school_year,
+        assigned_subject_id=assigned_subject_id
     )
 
 @app.route("/delete_grade/<int:grade_id>", methods=["POST"])
@@ -2257,11 +2413,9 @@ import re
 @app.route("/import_students", methods=["GET", "POST"])
 @login_required
 def import_students():
-    """Bước 1: Upload file và Sinh mã tự động"""
+    """Import students from Excel with columns: Mã học sinh, Họ và tên, Lớp"""
     if request.method == "POST":
         file = request.files.get("file")
-        # Lấy số khóa từ ô nhập (mặc định là 34 nếu không nhập)
-        course_code = request.form.get("course_code", "34").strip()
         
         if not file:
             flash("Vui lòng chọn file Excel!", "error")
@@ -2275,43 +2429,31 @@ def import_students():
             
             preview_data = []
             
-            # Tìm cột Họ tên và Lớp (chấp nhận: "họ tên", "tên", "họ và tên"...)
+            # Tìm các cột cần thiết
+            code_col = next((c for c in df.columns if "mã" in c or "code" in c), None)
             name_col = next((c for c in df.columns if "tên" in c or "name" in c), None)
             class_col = next((c for c in df.columns if "lớp" in c or "class" in c), None)
             
-            if not name_col or not class_col:
-                flash("File Excel cần có cột 'Họ tên' và 'Lớp'", "error")
+            if not code_col or not name_col or not class_col:
+                flash("File Excel cần có 3 cột: 'Mã học sinh', 'Họ và tên', 'Lớp'", "error")
                 return redirect(request.url)
 
             # Lặp qua từng dòng trong Excel
             for index, row in df.iterrows():
+                student_code = str(row[code_col]).strip()
                 name = str(row[name_col]).strip()
                 s_class = str(row[class_col]).strip()
                 
                 # Bỏ qua dòng trống
-                if not name or name.lower() == 'nan': continue
-
-                # --- LOGIC SINH MÃ: [KHÓA] [CHUYÊN] - 001[STT] ---
-                
-                # 1. Lấy phần Chuyên (VD: "12 Tin" -> "TIN")
-                class_unsign = unidecode.unidecode(s_class).upper() # 12 TIN
-                # Chỉ giữ lại chữ cái A-Z, bỏ số và dấu cách
-                specialization = re.sub(r'[^A-Z]', '', class_unsign) 
-                
-                # 2. Tính số thứ tự (STT)
-                # Đếm xem trong DB lớp này đã có bao nhiêu bạn rồi để nối tiếp
-                count_in_db = Student.query.filter_by(student_class=s_class).count()
-                # STT = Số lượng trong DB + Số thứ tự trong file Excel (index bắt đầu từ 0 nên +1)
-                sequence = count_in_db + index + 1
-                
-                # 3. Ghép mã
-                # {sequence:03d} nghĩa là số 6 sẽ thành 006
-                auto_code = f"{course_code} {specialization} - 001{sequence:03d}"
+                if not name or name.lower() == 'nan': 
+                    continue
+                if not student_code or student_code.lower() == 'nan':
+                    continue
                 
                 preview_data.append({
                     "name": name,
                     "class": s_class,
-                    "generated_code": auto_code
+                    "student_code": student_code
                 })
             
             # Chuyển sang trang xác nhận
@@ -2322,6 +2464,32 @@ def import_students():
             return redirect(request.url)
 
     return render_template("import_students.html")
+
+
+@app.route("/download_student_template")
+@login_required
+def download_student_template():
+    """Download Excel template for student import"""
+    sample_data = {
+        'Mã học sinh': ['36 ANHA - 001001', '36 ANHA - 001002', '36 TINA - 001001'],
+        'Họ và tên': ['Nguyễn Văn A', 'Trần Thị B', 'Lê Hoàng C'],
+        'Lớp': ['10 Anh A', '10 Anh A', '10 Tin A']
+    }
+    df = pd.DataFrame(sample_data)
+    
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Danh sách học sinh')
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='mau_nhap_hoc_sinh.xlsx'
+    )
+
+
 
 
 @app.route("/save_imported_students", methods=["POST"])
@@ -2391,5 +2559,575 @@ def fix_scores():
     except Exception as e:
         db.session.rollback()
         return f"Có lỗi xảy ra: {str(e)}"   
+
+
+# === BONUS POINTS ROUTES ===
+
+@app.route("/manage_bonus_types", methods=["GET", "POST"])
+@login_required
+def manage_bonus_types():
+    """Quản lý loại điểm cộng"""
+    if request.method == "POST":
+        name = request.form.get("bonus_name", "").strip()
+        points = int(request.form.get("points", 0))
+        description = request.form.get("description", "").strip()
+        
+        if name and points > 0:
+            if not BonusType.query.filter_by(name=name).first():
+                db.session.add(BonusType(name=name, points_added=points, description=description or None))
+                db.session.commit()
+                flash("Đã thêm loại điểm cộng mới!", "success")
+            else:
+                flash("Loại điểm cộng này đã tồn tại!", "error")
+        else:
+            flash("Vui lòng nhập đầy đủ thông tin!", "error")
+        return redirect(url_for("manage_bonus_types"))
+    
+    bonus_types = BonusType.query.order_by(BonusType.points_added.desc()).all()
+    return render_template("manage_bonus_types.html", bonus_types=bonus_types)
+
+
+@app.route("/edit_bonus_type/<int:bonus_id>", methods=["GET", "POST"])
+@login_required
+def edit_bonus_type(bonus_id):
+    """Sửa loại điểm cộng"""
+    bonus = db.session.get(BonusType, bonus_id)
+    if not bonus:
+        flash("Không tìm thấy loại điểm cộng!", "error")
+        return redirect(url_for("manage_bonus_types"))
+    
+    if request.method == "POST":
+        bonus.name = request.form.get("bonus_name", "").strip()
+        bonus.points_added = int(request.form.get("points", 0))
+        bonus.description = request.form.get("description", "").strip() or None
+        db.session.commit()
+        flash("Đã cập nhật loại điểm cộng!", "success")
+        return redirect(url_for("manage_bonus_types"))
+    
+    return render_template("edit_bonus_type.html", bonus=bonus)
+
+
+@app.route("/delete_bonus_type/<int:bonus_id>", methods=["POST"])
+@login_required
+def delete_bonus_type(bonus_id):
+    """Xóa loại điểm cộng"""
+    bonus = db.session.get(BonusType, bonus_id)
+    if bonus:
+        db.session.delete(bonus)
+        db.session.commit()
+        flash("Đã xóa loại điểm cộng!", "success")
+    return redirect(url_for("manage_bonus_types"))
+
+
+@app.route("/add_bonus", methods=["GET", "POST"])
+@login_required
+def add_bonus():
+    """Thêm điểm cộng cho học sinh"""
+    if request.method == "POST":
+        selected_student_ids = request.form.getlist("student_ids[]")
+        selected_bonus_ids = request.form.getlist("bonus_ids[]")
+        reason = request.form.get("reason", "").strip()
+        
+        if not selected_student_ids:
+            flash("Vui lòng chọn ít nhất một học sinh!", "error")
+            return redirect(url_for("add_bonus"))
+        
+        if not selected_bonus_ids:
+            flash("Vui lòng chọn ít nhất một loại điểm cộng!", "error")
+            return redirect(url_for("add_bonus"))
+        
+        # Lấy tuần hiện tại
+        w_cfg = SystemConfig.query.filter_by(key="current_week").first()
+        current_week = int(w_cfg.value) if w_cfg else 1
+        
+        count = 0
+        for bonus_id in selected_bonus_ids:
+            bonus_type = db.session.get(BonusType, int(bonus_id))
+            if not bonus_type:
+                continue
+            
+            for s_id in selected_student_ids:
+                student = db.session.get(Student, int(s_id))
+                if student:
+                    # Cộng điểm
+                    student.current_score = (student.current_score or 100) + bonus_type.points_added
+                    
+                    # Lưu lịch sử
+                    db.session.add(BonusRecord(
+                        student_id=student.id,
+                        bonus_type_name=bonus_type.name,
+                        points_added=bonus_type.points_added,
+                        reason=reason or None,
+                        week_number=current_week
+                    ))
+                    count += 1
+        
+        if count > 0:
+            db.session.commit()
+            flash(f"Đã ghi nhận điểm cộng cho {len(selected_student_ids)} học sinh x {len(selected_bonus_ids)} loại!", "success")
+        else:
+            flash("Có lỗi xảy ra, không ghi nhận được điểm cộng!", "error")
+        
+        return redirect(url_for("add_bonus"))
+    
+    # GET: Render form (filtered by role)
+    students = get_accessible_students().order_by(Student.student_class, Student.name).all()
+    bonus_types = BonusType.query.order_by(BonusType.points_added.desc()).all()
+    return render_template("add_bonus.html", students=students, bonus_types=bonus_types)
+
+
+# === ADMIN PANEL - QUẢN LÝ GIÁO VIÊN ===
+
+@app.route("/admin/teachers")
+@admin_required
+def manage_teachers():
+    """Danh sách giáo viên - Chỉ Admin"""
+    teachers = Teacher.query.filter(Teacher.id != current_user.id).order_by(Teacher.created_at.desc()).all()
+    subjects = Subject.query.order_by(Subject.name).all()
+    classes = ClassRoom.query.order_by(ClassRoom.name).all()
+    return render_template("manage_teachers.html", teachers=teachers, subjects=subjects, classes=classes)
+
+
+@app.route("/admin/teachers/add", methods=["GET", "POST"])
+@admin_required
+def add_teacher():
+    """Thêm giáo viên mới - Chỉ Admin"""
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+        full_name = request.form.get("full_name", "").strip()
+        role = request.form.get("role", "homeroom_teacher")
+        assigned_class = request.form.get("assigned_class", "").strip() or None
+        assigned_subject_id = request.form.get("assigned_subject_id") or None
+        
+        # Validation
+        if not username or not password or not full_name:
+            flash("Vui lòng điền đầy đủ thông tin!", "error")
+            return redirect(url_for("add_teacher"))
+        
+        # Check username exists
+        if Teacher.query.filter_by(username=username).first():
+            flash(f"Username '{username}' đã tồn tại!", "error")
+            return redirect(url_for("add_teacher"))
+        
+        # Create new teacher
+        new_teacher = Teacher(
+            username=username,
+            password=password,  # Note: nên hash password trong production
+            full_name=full_name,
+            role=role,
+            assigned_class=assigned_class if role == "homeroom_teacher" else None,
+            assigned_subject_id=int(assigned_subject_id) if role == "subject_teacher" and assigned_subject_id else None,
+            created_by=current_user.id
+        )
+        
+        try:
+            db.session.add(new_teacher)
+            db.session.commit()
+            flash(f"Đã tạo tài khoản '{full_name}' thành công!", "success")
+            return redirect(url_for("manage_teachers"))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Lỗi tạo tài khoản: {str(e)}", "error")
+            return redirect(url_for("add_teacher"))
+    
+    # GET: Render form
+    subjects = Subject.query.order_by(Subject.name).all()
+    classes = ClassRoom.query.order_by(ClassRoom.name).all()
+    return render_template("add_teacher.html", subjects=subjects, classes=classes)
+
+
+@app.route("/admin/teachers/<int:teacher_id>/edit", methods=["GET", "POST"])
+@admin_required
+def edit_teacher(teacher_id):
+    """Sửa thông tin giáo viên - Chỉ Admin"""
+    teacher = Teacher.query.get_or_404(teacher_id)
+    
+    # Không cho sửa chính mình
+    if teacher.id == current_user.id:
+        flash("Không thể sửa tài khoản của chính mình!", "error")
+        return redirect(url_for("manage_teachers"))
+    
+    if request.method == "POST":
+        teacher.full_name = request.form.get("full_name", "").strip() or teacher.full_name
+        teacher.role = request.form.get("role", teacher.role)
+        
+        new_password = request.form.get("password", "").strip()
+        if new_password:
+            teacher.password = new_password
+        
+        if teacher.role == "homeroom_teacher":
+            teacher.assigned_class = request.form.get("assigned_class", "").strip() or None
+            teacher.assigned_subject_id = None
+        elif teacher.role == "subject_teacher":
+            teacher.assigned_subject_id = request.form.get("assigned_subject_id") or None
+            if teacher.assigned_subject_id:
+                teacher.assigned_subject_id = int(teacher.assigned_subject_id)
+            teacher.assigned_class = None
+        else:  # admin
+            teacher.assigned_class = None
+            teacher.assigned_subject_id = None
+        
+        try:
+            db.session.commit()
+            flash(f"Đã cập nhật thông tin '{teacher.full_name}'!", "success")
+            return redirect(url_for("manage_teachers"))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Lỗi cập nhật: {str(e)}", "error")
+    
+    # GET: Render form
+    subjects = Subject.query.order_by(Subject.name).all()
+    classes = ClassRoom.query.order_by(ClassRoom.name).all()
+    return render_template("edit_teacher.html", teacher=teacher, subjects=subjects, classes=classes)
+
+
+@app.route("/admin/teachers/<int:teacher_id>/delete", methods=["POST"])
+@admin_required
+def delete_teacher(teacher_id):
+    """Xóa giáo viên - Chỉ Admin"""
+    teacher = Teacher.query.get_or_404(teacher_id)
+    
+    # Không cho xóa chính mình
+    if teacher.id == current_user.id:
+        flash("Không thể xóa tài khoản của chính mình!", "error")
+        return redirect(url_for("manage_teachers"))
+    
+    # Không cho xóa admin khác
+    if teacher.role == "admin":
+        flash("Không thể xóa tài khoản Admin!", "error")
+        return redirect(url_for("manage_teachers"))
+    
+    try:
+        name = teacher.full_name
+        
+        # Xóa tất cả tin nhắn group chat của giáo viên này
+        GroupChatMessage.query.filter_by(sender_id=teacher_id).delete()
+        
+        # Xóa tất cả tin nhắn riêng của giáo viên này (cả gửi và nhận)
+        PrivateMessage.query.filter(
+            or_(
+                PrivateMessage.sender_id == teacher_id,
+                PrivateMessage.receiver_id == teacher_id
+            )
+        ).delete()
+        
+        # Xóa tất cả thông báo liên quan
+        Notification.query.filter(
+            or_(
+                Notification.created_by == teacher_id,
+                Notification.recipient_id == teacher_id
+            )
+        ).delete()
+        
+        # Cuối cùng xóa tài khoản giáo viên
+        db.session.delete(teacher)
+        db.session.commit()
+        flash(f"Đã xóa tài khoản '{name}'!", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Lỗi xóa tài khoản: {str(e)}", "error")
+    
+    return redirect(url_for("manage_teachers"))
+
+
+# === NOTIFICATION ROUTES ===
+
+@app.route("/admin/send_notification", methods=["GET", "POST"])
+@admin_required
+def send_notification():
+    """Admin gửi thông báo chung"""
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        message = request.form.get("message", "").strip()
+        target_role = request.form.get("target_role", "all")
+        
+        if not title or not message:
+            flash("Vui lòng điền đầy đủ thông tin!", "error")
+            return redirect(url_for("send_notification"))
+        
+        try:
+            create_notification(title, message, 'announcement', target_role)
+            flash("Đã gửi thông báo thành công!", "success")
+        except Exception as e:
+            flash(f"Lỗi gửi thông báo: {str(e)}", "error")
+        
+        return redirect(url_for("send_notification"))
+    
+    return render_template("send_notification.html")
+
+@app.route("/notifications")
+@login_required
+def notifications():
+    """Xem danh sách thông báo"""
+    notifs = Notification.query.filter_by(recipient_id=current_user.id)\
+        .order_by(Notification.created_at.desc()).all()
+    return render_template("notifications.html", notifications=notifs)
+
+@app.route("/api/mark_notification_read/<int:notif_id>", methods=["POST"])
+@login_required
+def mark_notification_read(notif_id):
+    """Đánh dấu thông báo đã đọc"""
+    notif = Notification.query.get(notif_id)
+    if notif and notif.recipient_id == current_user.id:
+        notif.is_read = True
+        db.session.commit()
+        return jsonify({"success": True})
+    return jsonify({"success": False}), 403
+
+
+# === GROUP CHAT ROUTES ===
+
+@app.route("/group_chat")
+@login_required
+def group_chat():
+    """Phòng chat chung"""
+    messages = GroupChatMessage.query.order_by(GroupChatMessage.created_at.asc()).limit(100).all()
+    return render_template("group_chat.html", messages=messages)
+
+@app.route("/api/group_chat/send", methods=["POST"])
+@login_required
+def send_group_message():
+    """API gửi tin nhắn"""
+    message_text = request.json.get("message", "").strip()
+    if not message_text:
+        return jsonify({"success": False, "error": "Tin nhắn trống"}), 400
+    
+    msg = GroupChatMessage(
+        sender_id=current_user.id,
+        message=message_text
+    )
+    db.session.add(msg)
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": {
+            "id": msg.id,
+            "sender_id": msg.sender_id,
+            "sender_name": current_user.full_name,
+            "message": msg.message,
+            "created_at": msg.created_at.strftime("%H:%M %d/%m")
+        }
+    })
+
+@app.route("/api/group_chat/messages")
+@login_required
+def get_group_messages():
+    """API lấy danh sách tin nhắn"""
+    messages = GroupChatMessage.query.order_by(GroupChatMessage.created_at.asc()).limit(100).all()
+    return jsonify({
+        "messages": [
+            {
+                "id": m.id,
+                "sender_id": m.sender_id,
+                "sender_name": m.sender.full_name,
+                "message": m.message,
+                "created_at": m.created_at.strftime("%H:%M %d/%m")
+            }
+            for m in messages
+        ]
+    })
+
+
+# === PRIVATE CHAT ROUTES ===
+
+@app.route("/private_chats")
+@login_required
+def private_chats():
+    """Danh sách conversations (người đã chat)"""
+    # Lấy tất cả tin nhắn mà user tham gia (gửi hoặc nhận)
+    messages = PrivateMessage.query.filter(
+        or_(
+            PrivateMessage.sender_id == current_user.id,
+            PrivateMessage.receiver_id == current_user.id
+        )
+    ).all()
+    
+    # Tạo dict: other_user_id -> latest_message
+    conversations = {}
+    for msg in messages:
+        other_id = msg.receiver_id if msg.sender_id == current_user.id else msg.sender_id
+        if other_id not in conversations or msg.created_at > conversations[other_id]['last_time']:
+            unread_count = PrivateMessage.query.filter_by(
+                sender_id=other_id,
+                receiver_id=current_user.id,
+                is_read=False
+            ).count()
+            conversations[other_id] = {
+                'user': Teacher.query.get(other_id),
+                'last_message': msg.message,
+                'last_time': msg.created_at,
+                'unread_count': unread_count
+            }
+    
+    # Sort by last_time
+    sorted_convs = sorted(conversations.items(), key=lambda x: x[1]['last_time'], reverse=True)
+    
+    # Danh sách tất cả giáo viên để chọn chat mới
+    all_teachers = Teacher.query.filter(Teacher.id != current_user.id).order_by(Teacher.full_name).all()
+    
+    return render_template("private_chats.html", conversations=sorted_convs, all_teachers=all_teachers)
+
+@app.route("/private_chat/<int:teacher_id>")
+@login_required
+def private_chat(teacher_id):
+    """Chat với 1 giáo viên cụ thể"""
+    other = Teacher.query.get_or_404(teacher_id)
+    
+    if other.id == current_user.id:
+        flash("Không thể chat với chính mình!", "error")
+        return redirect(url_for('private_chats'))
+    
+    # Lấy tất cả tin nhắn giữa 2 người
+    messages = PrivateMessage.query.filter(
+        or_(
+            and_(PrivateMessage.sender_id == current_user.id, PrivateMessage.receiver_id == teacher_id),
+            and_(PrivateMessage.sender_id == teacher_id, PrivateMessage.receiver_id == current_user.id)
+        )
+    ).order_by(PrivateMessage.created_at.asc()).all()
+    
+    # Đánh dấu tin nhắn của người kia gửi đến mình là đã đọc
+    unread = PrivateMessage.query.filter_by(
+        receiver_id=current_user.id,
+        sender_id=teacher_id,
+        is_read=False
+    ).all()
+    for msg in unread:
+        msg.is_read = True
+    if unread:
+        db.session.commit()
+    
+    return render_template("private_chat.html", other=other, messages=messages)
+
+@app.route("/api/private_chat/send", methods=["POST"])
+@login_required
+def send_private_message():
+    """API gửi tin nhắn riêng"""
+    receiver_id = request.json.get("receiver_id")
+    message_text = request.json.get("message", "").strip()
+    
+    if not receiver_id or not message_text:
+        return jsonify({"success": False, "error": "Thiếu thông tin"}), 400
+    
+    if int(receiver_id) == current_user.id:
+        return jsonify({"success": False, "error": "Không thể gửi cho chính mình"}), 400
+    
+    msg = PrivateMessage(
+        sender_id=current_user.id,
+        receiver_id=receiver_id,
+        message=message_text
+    )
+    db.session.add(msg)
+    db.session.commit()
+    
+    return jsonify({
+        "success": True,
+        "message": {
+            "id": msg.id,
+            "sender_id": msg.sender_id,
+            "sender_name": current_user.full_name,
+            "message": msg.message,
+            "created_at": msg.created_at.strftime("%H:%M %d/%m")
+        }
+    })
+
+@app.route("/api/private_chat/messages/<int:teacher_id>")
+@login_required
+def get_private_messages(teacher_id):
+    """API lấy tin nhắn với 1 người"""
+    messages = PrivateMessage.query.filter(
+        or_(
+            and_(PrivateMessage.sender_id == current_user.id, PrivateMessage.receiver_id == teacher_id),
+            and_(PrivateMessage.sender_id == teacher_id, PrivateMessage.receiver_id == current_user.id)
+        )
+    ).order_by(PrivateMessage.created_at.asc()).all()
+    
+    return jsonify({
+        "messages": [
+            {
+                "id": m.id,
+                "sender_id": m.sender_id,
+                "sender_name": m.sender.full_name,
+                "message": m.message,
+                "created_at": m.created_at.strftime("%H:%M %d/%m")
+            }
+            for m in messages
+        ]
+    })
+
+
+# === ASSISTANT CHATBOT (ĐA NĂNG) ROUTES ===
+
+@app.route("/assistant_chatbot")
+@login_required
+def assistant_chatbot():
+    """Chatbot đa năng: nội quy, ứng xử, trợ giúp GV"""
+    return render_template("assistant_chatbot.html")
+
+@app.route("/api/assistant_chatbot", methods=["POST"])
+@login_required
+def api_assistant_chatbot():
+    """API cho chatbot đa năng với intent detection"""
+    msg = request.json.get("message", "").strip()
+    
+    if not msg:
+        return jsonify({"response": "Vui lòng nhập câu hỏi."})
+    
+    # Import prompts từ file riêng
+    from prompts import (
+        SCHOOL_RULES_PROMPT, 
+        BEHAVIOR_GUIDE_PROMPT, 
+        TEACHER_ASSISTANT_PROMPT,
+        DEFAULT_ASSISTANT_PROMPT
+    )
+    
+    # Intent detection - phát hiện chủ đề câu hỏi
+    msg_lower = msg.lower()
+    
+    # Kiểm tra từ khóa nội quy
+    school_rules_keywords = ["nội quy", "vi phạm", "quy định", "điểm rèn luyện", "bị trừ", "mức phạt", "xử lý kỷ luật"]
+    if any(kw in msg_lower for kw in school_rules_keywords):
+        system_prompt = SCHOOL_RULES_PROMPT
+        category = "nội quy"
+    
+    # Kiểm tra từ khóa ứng xử
+    elif any(kw in msg_lower for kw in ["ứng xử", "cách xử lý", "tình huống", "kỹ năng", "giao tiếp", "cãi nhau", "đánh nhau", "bắt nạt"]):
+        system_prompt = BEHAVIOR_GUIDE_PROMPT
+        category = "ứng xử"
+    
+    # Kiểm tra từ khóa trợ giúp giáo viên
+    elif any(kw in msg_lower for kw in ["nhận xét", "viết nhận xét", "đánh giá học sinh", "soạn", "phương pháp", "quản lý lớp", "giáo dục", "động viên"]):
+        system_prompt = TEACHER_ASSISTANT_PROMPT
+        category = "trợ giúp GV"
+    
+    # Mặc định
+    else:
+        system_prompt = DEFAULT_ASSISTANT_PROMPT
+        category = "general"
+    
+    # Tạo full prompt
+    full_prompt = f"""{system_prompt}
+
+===== CÂU HỎI =====
+{msg}
+
+===== YÊU CẦU =====
+Trả lời ngắn gọn, rõ ràng bằng tiếng Việt. Sử dụng markdown và emoji phù hợp."""
+    
+    # Gọi Ollama
+    answer, err = call_ollama(full_prompt)
+    
+    if err:
+        response_text = f"⚠️ {err}\n\nVui lòng kiểm tra:\n• Ollama đã được cài đặt và chạy chưa?\n• Model `llama3.2` đã được pull chưa? (`ollama pull llama3.2`)"
+    else:
+        response_text = answer or "Xin lỗi, tôi không thể trả lời câu hỏi này."
+    
+    return jsonify({
+        "response": response_text,
+        "category": category
+    })
+
+
 app.run(debug=True)
  

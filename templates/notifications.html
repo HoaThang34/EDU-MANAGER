@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Thông Báo{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-slate-800 mb-2">Thông Báo</h1>
+        <p class="text-slate-600">Danh sách thông báo dành cho bạn</p>
+    </div>
+
+    {% if notifications %}
+    <div class="space-y-4">
+        {% for notif in notifications %}
+        <div
+            class="bg-white rounded-xl shadow-lg p-6 border-l-4 {% if notif.is_read %}border-slate-300{% else %}border-indigo-500{% endif %} hover:shadow-xl transition">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 mb-2">
+                        {% if notif.notification_type == 'violation' %}
+                        <span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">⚠️ Vi
+                            phạm</span>
+                        {% elif notif.notification_type == 'grade' %}
+                        <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">📊 Điểm
+                            số</span>
+                        {% elif notif.notification_type == 'bonus' %}
+                        <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">⭐ Điểm
+                            cộng</span>
+                        {% else %}
+                        <span class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold">📢
+                            Thông báo</span>
+                        {% endif %}
+
+                        {% if not notif.is_read %}
+                        <span class="px-2 py-0.5 bg-red-500 text-white rounded text-xs font-bold">MỚI</span>
+                        {% endif %}
+                    </div>
+
+                    <h3 class="text-lg font-bold text-slate-800 mb-2">{{ notif.title }}</h3>
+                    <p class="text-slate-600 mb-3">{{ notif.message }}</p>
+
+                    <div class="flex items-center gap-4 text-sm text-slate-500">
+                        <span><i class="fas fa-clock mr-1"></i> {{ notif.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                        {% if notif.creator %}
+                        <span><i class="fas fa-user mr-1"></i> {{ notif.creator.full_name }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if not notif.is_read %}
+                <button onclick="markAsRead({{ notif.id }})"
+                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+                    <i class="fas fa-check mr-1"></i> Đánh dấu đã đọc
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl shadow-lg p-12 text-center border border-slate-200">
+        <i class="fas fa-bell-slash text-6xl text-slate-300 mb-4"></i>
+        <h3 class="text-xl font-bold text-slate-700 mb-2">Chưa có thông báo</h3>
+        <p class="text-slate-500">Bạn chưa nhận được thông báo nào</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    function markAsRead(notifId) {
+        fetch(`/api/mark_notification_read/${notifId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Có lỗi xảy ra!');
+            });
+    }
+</script>
+{% endblock %}
