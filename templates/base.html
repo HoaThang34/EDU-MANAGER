@@ -155,6 +155,12 @@
                             class="fas fa-history mr-3 group-hover:text-indigo-400 {% if request.endpoint == 'history' %}text-indigo-400{% endif %}"></i>
                         <span class="font-medium">Kho Lưu Trữ Kết Quả</span>
                     </a>
+                    <a href="{{ url_for('changelog') }}"
+                        class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint == 'changelog' %}active text-white bg-slate-800 border-indigo-500{% endif %}">
+                        <i
+                            class="fas fa-history mr-3 group-hover:text-indigo-400 {% if request.endpoint == 'changelog' %}text-indigo-400{% endif %}"></i>
+                        <span class="font-medium">Lịch Sử Thay Đổi CSDL</span>
+                    </a>
                 </div>
             </div>
 

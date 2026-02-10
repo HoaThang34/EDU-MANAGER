@@ -25,7 +25,7 @@ from flask_login import (
     current_user,
 )
 
-from models import db, Student, Violation, ViolationType, Teacher, SystemConfig, ClassRoom, WeeklyArchive, Subject, Grade, ChatConversation, BonusType, BonusRecord, Notification, GroupChatMessage, PrivateMessage
+from models import db, Student, Violation, ViolationType, Teacher, SystemConfig, ClassRoom, WeeklyArchive, Subject, Grade, ChatConversation, BonusType, BonusRecord, Notification, GroupChatMessage, PrivateMessage, ChangeLog
 
 
 # === HELPER FUNCTIONS CHO PHÂN QUYỀN ===
@@ -158,6 +158,28 @@ def create_notification(title, message, notification_type, target_role='all', sp
                 db.session.add(notif)
     
     db.session.commit()
+
+
+def log_change(change_type, description, student_id=None, student_name=None, student_class=None, old_value=None, new_value=None):
+    """
+    Ghi nhận thay đổi CSDL vào bảng ChangeLog.
+    Gọi hàm này TRƯỚC db.session.commit() để đảm bảo cùng transaction.
+    """
+    try:
+        changed_by_id = current_user.id if current_user.is_authenticated else None
+        log_entry = ChangeLog(
+            changed_by_id=changed_by_id,
+            change_type=change_type,
+            student_id=student_id,
+            student_name=student_name,
+            student_class=student_class,
+            description=description,
+            old_value=str(old_value) if old_value is not None else None,
+            new_value=str(new_value) if new_value is not None else None
+        )
+        db.session.add(log_entry)
+    except Exception as e:
+        print(f"ChangeLog Error: {e}")
 
 
 
@@ -482,6 +504,8 @@ def import_violations_to_db(violations_data):
             # 3. CẬP NHẬT TRỪ ĐIỂM NGAY LẬP TỨC (Đây là đoạn quan trọng mới thêm)
             current = student.current_score if student.current_score is not None else 100
             student.current_score = current - v_data['points_deducted']
+            
+            log_change('bulk_violation', f'Nhập vi phạm hàng loạt: {v_data["violation_type_name"]} (-{v_data["points_deducted"]} điểm)', student_id=student.id, student_name=student.name, student_class=student.student_class, old_value=current, new_value=student.current_score)
             
             success_count += 1
             
@@ -862,8 +886,10 @@ def add_violation():
                 for s_id in selected_student_ids:
                     student = db.session.get(Student, int(s_id))
                     if student:
-                        student.current_score = (student.current_score or 100) - rule.points_deducted
+                        old_score = student.current_score or 100
+                        student.current_score = old_score - rule.points_deducted
                         db.session.add(Violation(student_id=student.id, violation_type_name=rule.name, points_deducted=rule.points_deducted, week_number=current_week))
+                        log_change('violation', f'Vi phạm: {rule.name} (-{rule.points_deducted} điểm)', student_id=student.id, student_name=student.name, student_class=student.student_class, old_value=old_score, new_value=student.current_score)
                         count += 1
             
             # B. Xử lý danh sách từ OCR (Áp dụng normalize)
@@ -889,8 +915,10 @@ def add_violation():
                                     break
                         
                         if s:
-                            s.current_score = (s.current_score or 100) - rule.points_deducted
+                            old_score = s.current_score or 100
+                            s.current_score = old_score - rule.points_deducted
                             db.session.add(Violation(student_id=s.id, violation_type_name=rule.name, points_deducted=rule.points_deducted, week_number=current_week))
+                            log_change('violation', f'Vi phạm (OCR): {rule.name} (-{rule.points_deducted} điểm)', student_id=s.id, student_name=s.name, student_class=s.student_class, old_value=old_score, new_value=s.current_score)
                             count += 1
                 except Exception as e:
                     print(f"OCR Error: {e}")
@@ -1993,8 +2021,13 @@ def student_grades(student_id):
             school_year=school_year
         ).first()
         
+        subject_obj = db.session.get(Subject, int(subject_id))
+        subject_name = subject_obj.name if subject_obj else 'N/A'
+        
         if existing:
+            old_score_val = existing.score
             existing.score = score_float
+            log_change('grade_update', f'Cập nhật điểm {grade_type} môn {subject_name}: {old_score_val} → {score_float}', student_id=student_id, student_name=student.name, student_class=student.student_class, old_value=old_score_val, new_value=score_float)
             flash("Đã cập nhật điểm!", "success")
         else:
             grade = Grade(
@@ -2007,6 +2040,7 @@ def student_grades(student_id):
                 school_year=school_year
             )
             db.session.add(grade)
+            log_change('grade', f'Thêm điểm {grade_type} môn {subject_name}: {score_float}', student_id=student_id, student_name=student.name, student_class=student.student_class, new_value=score_float)
             flash("Đã thêm điểm!", "success")
         
         db.session.commit()
@@ -2068,6 +2102,9 @@ def delete_grade(grade_id):
     grade = db.session.get(Grade, grade_id)
     if grade:
         student_id = grade.student_id
+        student = db.session.get(Student, student_id)
+        subject = db.session.get(Subject, grade.subject_id)
+        log_change('grade_delete', f'Xóa điểm {grade.grade_type} môn {subject.name if subject else "N/A"}: {grade.score}', student_id=student_id, student_name=student.name if student else None, student_class=student.student_class if student else None, old_value=grade.score)
         db.session.delete(grade)
         db.session.commit()
         flash("Đã xóa điểm!", "success")
@@ -2089,7 +2126,11 @@ def update_grade_api(grade_id):
         if not grade:
             return jsonify({"success": False, "error": "Không tìm thấy điểm"}), 404
         
+        old_score_val = grade.score
         grade.score = new_score
+        student = db.session.get(Student, grade.student_id)
+        subject = db.session.get(Subject, grade.subject_id)
+        log_change('grade_update', f'Cập nhật điểm inline {grade.grade_type} môn {subject.name if subject else "N/A"}: {old_score_val} → {new_score}', student_id=grade.student_id, student_name=student.name if student else None, student_class=student.student_class if student else None, old_value=old_score_val, new_value=new_score)
         db.session.commit()
         
         return jsonify({"success": True, "score": new_score})
@@ -2365,6 +2406,54 @@ def update_week():
     c = SystemConfig.query.filter_by(key="current_week").first()
     if c: c.value = str(request.form["new_week"]); db.session.commit()
     return redirect(url_for("dashboard"))
+
+@app.route("/changelog")
+@login_required
+def changelog():
+    """Xem lịch sử thay đổi CSDL - Tất cả người dùng đều có thể xem"""
+    page = request.args.get('page', 1, type=int)
+    per_page = 30
+    search = request.args.get('search', '').strip()
+    change_type_filter = request.args.get('type', '').strip()
+    
+    q = ChangeLog.query
+    
+    if search:
+        q = q.filter(
+            db.or_(
+                ChangeLog.description.ilike(f'%{search}%'),
+                ChangeLog.student_name.ilike(f'%{search}%'),
+                ChangeLog.student_class.ilike(f'%{search}%')
+            )
+        )
+    
+    if change_type_filter:
+        q = q.filter(ChangeLog.change_type == change_type_filter)
+    
+    # Sắp xếp mới nhất trước
+    logs = q.order_by(ChangeLog.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    
+    # Lấy danh sách change_type duy nhất để filter
+    all_types = db.session.query(ChangeLog.change_type).distinct().all()
+    type_labels = {
+        'violation': 'Vi phạm',
+        'bonus': 'Điểm cộng',
+        'grade': 'Thêm điểm',
+        'grade_update': 'Cập nhật điểm',
+        'grade_delete': 'Xóa điểm',
+        'violation_delete': 'Xóa vi phạm',
+        'score_reset': 'Reset điểm',
+        'bulk_violation': 'Nhập VP hàng loạt'
+    }
+    
+    return render_template("changelog.html", 
+        logs=logs, 
+        search=search, 
+        change_type_filter=change_type_filter,
+        all_types=[t[0] for t in all_types],
+        type_labels=type_labels
+    )
+
 @app.route("/api/check_duplicate_student", methods=["POST"])
 def check_duplicate_student(): return jsonify([])
 
@@ -2389,10 +2478,12 @@ def delete_violation(violation_id):
         # 2. KHÔI PHỤC ĐIỂM SỐ
         # Cộng trả lại điểm đã trừ
         if student:
+            old_score = student.current_score
             student.current_score += violation.points_deducted
             # Đảm bảo điểm không vượt quá 100 (nếu quy chế là max 100)
             if student.current_score > 100:
                 student.current_score = 100
+            log_change('violation_delete', f'Xóa vi phạm: {violation.violation_type_name} (hoàn +{violation.points_deducted} điểm)', student_id=student.id, student_name=student.name, student_class=student.student_class, old_value=old_score, new_value=student.current_score)
         
         # 3. Xóa vi phạm
         db.session.delete(violation)
@@ -2650,7 +2741,8 @@ def add_bonus():
                 student = db.session.get(Student, int(s_id))
                 if student:
                     # Cộng điểm
-                    student.current_score = (student.current_score or 100) + bonus_type.points_added
+                    old_score = student.current_score or 100
+                    student.current_score = old_score + bonus_type.points_added
                     
                     # Lưu lịch sử
                     db.session.add(BonusRecord(
@@ -2660,6 +2752,7 @@ def add_bonus():
                         reason=reason or None,
                         week_number=current_week
                     ))
+                    log_change('bonus', f'Điểm cộng: {bonus_type.name} (+{bonus_type.points_added} điểm){" - " + reason if reason else ""}', student_id=student.id, student_name=student.name, student_class=student.student_class, old_value=old_score, new_value=student.current_score)
                     count += 1
         
         if count > 0:
@@ -3129,5 +3222,6 @@ Trả lời ngắn gọn, rõ ràng bằng tiếng Việt. Sử dụng markdown 
     })
 
 
-app.run(debug=True)
+if __name__ == "__main__":
+    app.run(debug=True)
  

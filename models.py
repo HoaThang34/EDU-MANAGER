@@ -167,3 +167,20 @@ class PrivateMessage(db.Model):
     
     sender = db.relationship('Teacher', foreign_keys=[sender_id], backref='sent_private_messages')
     receiver = db.relationship('Teacher', foreign_keys=[receiver_id], backref='received_private_messages')
+
+
+class ChangeLog(db.Model):
+    """Lịch sử thay đổi CSDL - ghi nhận mọi thay đổi về điểm, vi phạm, điểm cộng"""
+    id = db.Column(db.Integer, primary_key=True)
+    changed_by_id = db.Column(db.Integer, db.ForeignKey('teacher.id'), nullable=True)
+    change_type = db.Column(db.String(50), nullable=False)  # 'violation', 'bonus', 'grade', 'grade_update', 'grade_delete', 'violation_delete', 'score_reset', 'bulk_violation'
+    student_id = db.Column(db.Integer, db.ForeignKey('student.id'), nullable=True)
+    student_name = db.Column(db.String(100))
+    student_class = db.Column(db.String(20))
+    description = db.Column(db.Text, nullable=False)
+    old_value = db.Column(db.String(200))
+    new_value = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+    changed_by = db.relationship('Teacher', backref=db.backref('change_logs', lazy=True))
+    student = db.relationship('Student', backref=db.backref('change_logs', lazy=True))
