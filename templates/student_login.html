@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập Học sinh - EDU Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify_content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            border: none;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 2rem 1rem;
+            border: none;
+        }
+
+        .card-body {
+            padding: 2rem;
+            background: white;
+        }
+
+        .form-control {
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            font-weight: 600;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="login-card card">
+        <div class="card-header">
+            <h3 class="mb-0"><i class="fas fa-graduation-cap me-2"></i>Cổng Học Sinh</h3>
+            <p class="mb-0 opacity-75">Trường THPT Chuyên Nguyễn Tất Thành</p>
+        </div>
+        <div class="card-body">
+            {% with messages = get_flashed_messages(category_filter=["error"]) %}
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-danger py-2 mb-3" role="alert">
+                <small>{{ message }}</small>
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST">
+                <div class="mb-4">
+                    <label for="student_code" class="form-label text-secondary fw-bold small">MÃ HỌC SINH</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i
+                                class="fas fa-id-card text-secondary"></i></span>
+                        <input type="text" class="form-control border-start-0 ps-0" id="student_code"
+                            name="student_code" placeholder="VD: 12 TIN-001" required autofocus>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-login">
+                    Tra cứu & Đăng nhập <i class="fas fa-arrow-right ms-2"></i>
+                </button>
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('login') }}" class="text-decoration-none small text-secondary">Đăng nhập Giáo
+                        viên</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</body>
+
+</html>

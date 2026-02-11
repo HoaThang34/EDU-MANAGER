@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Học Sinh Dashboard - EDU Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+    <style>
+        :root {
+            --primary-color: #6c5ce7;
+            --secondary-color: #a29bfe;
+            --bg-color: #f0f2f5;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar-custom {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 1rem 0;
+        }
+
+        .student-card {
+            background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            height: 100%;
+            border: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .nav-pills .nav-link {
+            border-radius: 10px;
+            color: #636e72;
+            font-weight: 500;
+            padding: 10px 20px;
+        }
+
+        .nav-pills .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .chat-container {
+            height: 500px;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            border-radius: 15px;
+            border: 1px solid #e0e0e0;
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            max-width: 80%;
+            clear: both;
+        }
+
+        .message.user {
+            float: right;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 15px 15px 0 15px;
+            padding: 10px 15px;
+        }
+
+        .message.bot {
+            float: left;
+            background: white;
+            color: #2d3436;
+            border-radius: 15px 15px 15px 0;
+            padding: 10px 15px;
+            border: 1px solid #e0e0e0;
+            white-space: pre-wrap;
+            /* Giữ format xuống dòng */
+        }
+
+        .ai-badge {
+            font-size: 0.8rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: #ffeaa7;
+            color: #d63031;
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+
+        .ai-advice-box {
+            background: #e1f5fe;
+            border-left: 5px solid #03a9f4;
+            padding: 15px;
+            border-radius: 5px;
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-primary" href="#">
+                <i class="fas fa-graduation-cap me-2"></i>EDU Student
+            </a>
+            <div class="d-flex">
+                <span class="navbar-text me-3 fw-bold text-dark">
+                    {{ student.name }}
+                </span>
+                <a href="{{ url_for('student_logout') }}" class="btn btn-outline-danger btn-sm rounded-pill">
+                    <i class="fas fa-sign-out-alt me-1"></i>Thoát
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Student Info Header -->
+        <div class="row">
+            <div class="col-md-4">
+                <div class="student-card animate__animated animate__fadeInLeft">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-white rounded-circle p-2 text-primary me-3">
+                            <i class="fas fa-user-astronaut fa-2x"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">{{ student.name }}</h5>
+                            <small class="opacity-75">{{ student.student_code }}</small>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-3">
+                        <div class="text-center">
+                            <h3 class="mb-0 fw-bold">{{ student.current_score }}</h3>
+                            <small class="opacity-75">Điểm Thi Đua</small>
+                        </div>
+                        <div class="text-center border-start border-end px-3">
+                            <h3 class="mb-0 fw-bold">{{ student.student_class }}</h3>
+                            <small class="opacity-75">Lớp</small>
+                        </div>
+                        <div class="text-center">
+                            <h3 class="mb-0 fw-bold">{{ current_week }}</h3>
+                            <small class="opacity-75">Tuần</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Advisor Box -->
+                <div class="card border-0 shadow-sm mb-4 animate__animated animate__fadeInUp">
+                    <div class="card-header bg-warning text-dark border-0">
+                        <i class="fas fa-robot me-2"></i><strong>AI Mentor Nhận xét</strong>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex align-items-start">
+                            <img src="https://ui-avatars.com/api/?name=AI&background=random" class="rounded-circle me-2"
+                                width="40">
+                            <div class="text-muted small">
+                                {{ ai_advice | markdown | safe }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <!-- Tabs Navigation -->
+                <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="pills-home-tab" data-bs-toggle="pill"
+                            data-bs-target="#pills-home" type="button" role="tab"><i
+                                class="fas fa-chart-line me-2"></i>Học Tập & Rèn Luyện</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="pills-chat-tab" data-bs-toggle="pill" data-bs-target="#pills-chat"
+                            type="button" role="tab"><i class="fas fa-comments me-2"></i>Trợ lý AI & Chatbot</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="pills-tabContent">
+                    <!-- TAB 1: Học tập & Rèn luyện -->
+                    <div class="tab-pane fade show active" id="pills-home" role="tabpanel">
+
+                        <!-- Violations -->
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-header bg-white fw-bold text-danger">
+                                <i class="fas fa-exclamation-circle me-2"></i>Vi phạm tuần này
+                            </div>
+                            <div class="card-body p-0">
+                                {% if violations %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Lỗi vi phạm</th>
+                                                <th>Điểm trừ</th>
+                                                <th>Thời gian</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for v in violations %}
+                                            <tr>
+                                                <td>{{ v.violation_type_name }}</td>
+                                                <td class="text-danger fw-bold">-{{ v.points_deducted }}</td>
+                                                <td>{{ v.date_committed.strftime('%d/%m %H:%M') }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% else %}
+                                <div class="p-4 text-center text-success">
+                                    <i class="fas fa-check-circle fa-3x mb-2"></i>
+                                    <p class="mb-0">Hoan hô! Tuần này em chưa có vi phạm nào.</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Grades -->
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-header bg-white fw-bold text-primary">
+                                <i class="fas fa-book-open me-2"></i>Bảng điểm (Tạm tính)
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-sm text-center align-middle">
+                                        <thead class="table-secondary">
+                                            <tr>
+                                                <th>Môn</th>
+                                                <th>TX (x1)</th>
+                                                <th>GK (x2)</th>
+                                                <th>HK (x3)</th>
+                                                <th>TB Môn</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for sub_name, g in transcript.items() %}
+                                            <tr>
+                                                <td class="fw-bold text-start ps-3">{{ sub_name }}</td>
+                                                <td>
+                                                    {% for s in g['TX'] %}<span
+                                                        class="badge bg-light text-dark border me-1">{{ s }}</span>{%
+                                                    endfor %}
+                                                </td>
+                                                <td>
+                                                    {% for s in g['GK'] %}<span
+                                                        class="badge bg-warning text-dark me-1">{{ s }}</span>{% endfor
+                                                    %}
+                                                </td>
+                                                <td>
+                                                    {% for s in g['HK'] %}<span class="badge bg-danger me-1">{{ s
+                                                        }}</span>{% endfor %}
+                                                </td>
+                                                <td
+                                                    class="fw-bold {% if g['TB'] and g['TB'] >= 8.0 %}text-success{% elif g['TB'] and g['TB'] < 5.0 %}text-danger{% endif %}">
+                                                    {{ g['TB'] if g['TB'] else '-' }}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- TAB 2: Chatbot -->
+                    <div class="tab-pane fade" id="pills-chat" role="tabpanel">
+                        <div class="chat-container shadow-sm">
+                            <!-- Chat Header with Mode Toggle -->
+                            <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-robot text-primary fa-lg me-2"></i>
+                                    <span class="fw-bold">Trợ lý AI</span>
+                                </div>
+                                <div class="btn-group" role="group">
+                                    <input type="radio" class="btn-check" name="chatMode" id="modeRule" value="rule"
+                                        checked>
+                                    <label class="btn btn-outline-primary btn-sm" for="modeRule">
+                                        <i class="fas fa-heart me-1"></i>Tâm lý & Nội quy
+                                    </label>
+
+                                    <input type="radio" class="btn-check" name="chatMode" id="modeStudy" value="study">
+                                    <label class="btn btn-outline-success btn-sm" for="modeStudy">
+                                        <i class="fas fa-book me-1"></i>Hỗ trợ Học tập
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Chat Messages -->
+                            <div class="chat-messages" id="chatList">
+                                <div class="message bot">
+                                    Xin chào <b>{{ student.name }}</b>! 👋 <br>
+                                    Mình là Trợ lý AI của trường Nguyễn Tất Thành. Mình có thể giúp gì cho bạn hôm nay?
+                                </div>
+                            </div>
+
+                            <!-- Chat Input -->
+                            <div class="p-3 bg-white border-top">
+                                <div class="input-group">
+                                    <input type="text" id="chatInput" class="form-control"
+                                        placeholder="Nhập câu hỏi của bạn..." onkeypress="handleEnter(event)">
+                                    <button class="btn btn-primary" type="button" onclick="sendMessage()">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted mt-2 d-block text-center" style="font-size: 0.75rem;">
+                                    AI có thể đưa ra thông tin chưa chính xác. Hãy kiểm chứng lại với thầy cô nhé.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script>
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            const mode = document.querySelector('input[name="chatMode"]:checked').value;
+            const chatList = document.getElementById('chatList');
+
+            if (!text) return;
+
+            // 1. Add User Message
+            const userDiv = document.createElement('div');
+            userDiv.className = 'message user animate__animated animate__fadeInRight';
+            userDiv.textContent = text;
+            chatList.appendChild(userDiv);
+            input.value = '';
+            chatList.scrollTop = chatList.scrollHeight;
+
+            // 2. Add Loading State
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message bot';
+            loadingDiv.innerHTML = '<i class="fas fa-ellipsis-h fa-beat"></i>';
+            loadingDiv.id = 'loadingMsg';
+            chatList.appendChild(loadingDiv);
+            chatList.scrollTop = chatList.scrollHeight;
+
+            try {
+                // 3. Call API
+                const response = await fetch('/api/student/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text, mode: mode })
+                });
+                const data = await response.json();
+
+                // 4. Remove Loading & Add Bot Response
+                loadingDiv.remove();
+
+                const botDiv = document.createElement('div');
+                botDiv.className = 'message bot animate__animated animate__fadeInLeft';
+                // Render Markdown using marked.parse
+                botDiv.innerHTML = marked.parse(data.reply || "Lỗi kết nối.");
+                chatList.appendChild(botDiv);
+                chatList.scrollTop = chatList.scrollHeight;
+
+            } catch (error) {
+                loadingDiv.remove();
+                console.error('Chat error:', error);
+                const errDiv = document.createElement('div');
+                errDiv.className = 'message bot text-danger';
+                errDiv.textContent = 'Mất kết nối máy chủ.';
+                chatList.appendChild(errDiv);
+            }
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+    </script>
+
+</body>
+
+</html>

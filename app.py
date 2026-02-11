@@ -13,6 +13,7 @@ from flask import send_file
 import pandas as pd
 import ollama
 from functools import wraps
+import markdown
 
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, desc, or_, and_
@@ -234,6 +235,10 @@ def inject_global_data():
         role_display=role_display,
         is_admin=is_admin
     )
+
+@app.template_filter('markdown')
+def markdown_filter(text):
+    return markdown.markdown(text, extensions=['fenced_code', 'tables'])
 
 
 def normalize_student_code(code):
@@ -728,11 +733,196 @@ def dashboard():
                            bar_labels=json.dumps([n for n, _ in top]), 
                            bar_data=json.dumps([c for _, c in top]))
 
-# --- Thêm vào app.py ---
 
-# --- Copy đoạn này DÁN ĐÈ vào vị trí hàm analyze_class_stats cũ ---
+# === STUDENT PORTAL ROUTES ===
 
-@app.route("/api/analyze_class_stats", methods=["POST"])
+def student_required(f):
+    """Decorator yêu cầu quyền học sinh để truy cập"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'student_id' not in session:
+            return redirect(url_for('student_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route("/student/login", methods=["GET", "POST"])
+def student_login():
+    if request.method == "POST":
+        code = request.form.get("student_code", "").strip()
+        # Chuẩn hóa mã
+        norm_code = normalize_student_code(code)
+        
+        student = Student.query.filter_by(student_code=norm_code).first()
+        if student:
+            session['student_id'] = student.id
+            session['student_name'] = student.name
+            return redirect(url_for('student_dashboard'))
+        else:
+            flash("Mã học sinh không tồn tại! Vui lòng kiểm tra lại.", "error")
+            
+    return render_template("student_login.html")
+
+@app.route("/student/logout")
+def student_logout():
+    session.pop('student_id', None)
+    session.pop('student_name', None)
+    return redirect(url_for('student_login'))
+
+def get_student_ai_advice(student):
+    """
+    Phân tích dữ liệu học sinh và đưa ra lời khuyên từ AI
+    """
+    try:
+        # 1. Lấy dữ liệu
+        import prompts
+        
+        # Lấy vi phạm tuần hiện tại
+        week_cfg = SystemConfig.query.filter_by(key="current_week").first()
+        current_week = int(week_cfg.value) if week_cfg else 1
+        
+        violations = Violation.query.filter_by(
+            student_id=student.id, 
+            week_number=current_week
+        ).all()
+        violation_text = ", ".join([v.violation_type_name for v in violations]) if violations else "Không có"
+        
+        # Lấy điểm cộng
+        bonuses = BonusRecord.query.filter_by(
+            student_id=student.id,
+            week_number=current_week
+        ).all()
+        bonus_text = ", ".join([b.bonus_type_name for b in bonuses]) if bonuses else "Không có"
+        
+        # Lấy GPA (tạm tính HK hiện tại)
+        semester = 1 if current_week <= 20 else 2
+        gpa = calculate_student_gpa(student.id, semester, "2023-2024")
+        gpa_text = str(gpa) if gpa else "Chưa có"
+        
+        # 2. Tạo prompt
+        prompt = prompts.STUDENT_ANALYSIS_PROMPT.format(
+            name=student.name,
+            student_class=student.student_class,
+            score=student.current_score,
+            violations=violation_text,
+            bonuses=bonus_text,
+            gpa=gpa_text
+        )
+        
+        # 3. Gọi AI
+        advice, err = call_ollama(prompt)
+        return advice if not err else "Hệ thống đang bận, em quay lại sau nhé!"
+        
+    except Exception as e:
+        print(f"AI Advice Error: {e}")
+        return "Chào em, chúc em một ngày học tập thật tốt! (Hệ thống tư vấn đang bảo trì)"
+
+@app.route("/student/dashboard")
+@student_required
+def student_dashboard():
+    student_id = session['student_id']
+    student = Student.query.get(student_id)
+    if not student:
+        return redirect(url_for('student_logout'))
+        
+    # Lấy dữ liệu hiển thị
+    week_cfg = SystemConfig.query.filter_by(key="current_week").first()
+    current_week = int(week_cfg.value) if week_cfg else 1
+    
+    # 1. Vi phạm tuần này
+    current_violations = Violation.query.filter_by(
+        student_id=student_id, 
+        week_number=current_week
+    ).all()
+    
+    # 2. Điểm cộng tuần này
+    current_bonuses = BonusRecord.query.filter_by(
+        student_id=student_id,
+        week_number=current_week
+    ).all()
+    
+    # 3. Điểm số các môn (GPA)
+    semester = 1 if current_week <= 20 else 2
+    grades = Grade.query.filter_by(
+        student_id=student_id,
+        semester=semester
+    ).all()
+    
+    # Group grades
+    transcript = {}
+    subjects = Subject.query.all()
+    for sub in subjects:
+        transcript[sub.name] = {'TX': [], 'GK': [], 'HK': [], 'TB': None}
+        
+    for g in grades:
+        if g.subject.name in transcript:
+            transcript[g.subject.name][g.grade_type].append(g.score)
+            
+    # Tính TB môn
+    for sub_name, data in transcript.items():
+        if data['TX'] and data['GK'] and data['HK']:
+            avg = (sum(data['TX'])/len(data['TX']) + sum(data['GK'])/len(data['GK'])*2 + sum(data['HK'])/len(data['HK'])*3) / 6
+            data['TB'] = round(avg, 2)
+            
+    # 4. Lấy lời khuyên AI (Optional - có thể load async)
+    ai_advice = get_student_ai_advice(student)
+    
+    return render_template("student_dashboard.html", 
+                           student=student, 
+                           violations=current_violations,
+                           bonuses=current_bonuses,
+                           transcript=transcript,
+                           ai_advice=ai_advice,
+                           current_week=current_week)
+
+@app.route("/api/student/chat", methods=["POST"])
+@student_required
+def student_chat_api():
+    """
+    API Chatbot cho học sinh
+    Payload: { "message": "...", "mode": "rule|study" }
+    """
+    data = request.get_json()
+    msg = data.get("message", "").strip()
+    mode = data.get("mode", "rule") # rule (tâm lý/nội quy) hoặc study (học tập)
+    
+    if not msg:
+        return jsonify({"error": "Empty message"}), 400
+        
+    student_id = session['student_id']
+    session_id = get_or_create_chat_session()
+    
+    # 1. Lưu tin nhắn User
+    save_message(session_id, None, 'user', msg, context_data={"student_id": student_id, "mode": mode})
+    
+    # 2. Chọn System Prompt
+    import prompts
+    if mode == 'study':
+        system_prompt = prompts.STUDENT_LEARNING_PROMPT
+    else:
+        system_prompt = prompts.STUDENT_RULE_PROMPT
+        
+    # 3. Build context for AI
+    # Lấy lịch sử chat gần đây
+    history = get_conversation_history(session_id, limit=6)
+    
+    # Ghép prompt
+    full_prompt = f"{system_prompt}\n\nLịch sử trò chuyện:\n"
+    for h in history:
+        full_prompt += f"{h['role'].title()}: {h['content']}\n"
+        
+    full_prompt += f"\nUser: {msg}\nAssistant:"
+    
+    # 4. Gọi AI
+    reply, err = call_ollama(full_prompt)
+    if err:
+        reply = "Xin lỗi, hiện tại mình đang bị 'lag' xíu. Bạn hỏi lại sau nhé! 😿"
+        
+    # 5. Lưu tin nhắn Bot
+    save_message(session_id, None, 'assistant', reply, context_data={"student_id": student_id, "mode": mode})
+    
+    return jsonify({"reply": reply})
+
+
 @login_required
 def analyze_class_stats():
     """
@@ -2459,7 +2649,8 @@ def check_duplicate_student(): return jsonify([])
 
 def create_database():
     db.create_all()
-    if not Teacher.query.first(): db.session.add(Teacher(username="admin", password="admin", full_name="Admin"))
+    if not Teacher.query.first(): 
+        db.session.add(Teacher(username="admin", password="admin", full_name="Admin", role="admin"))
     if not SystemConfig.query.first(): db.session.add(SystemConfig(key="current_week", value="1"))
     if not ViolationType.query.first(): db.session.add(ViolationType(name="Đi muộn", points_deducted=2))
     db.session.commit()
@@ -2513,8 +2704,16 @@ def import_students():
             return redirect(request.url)
 
         try:
+            # Save temporary file
+            if not os.path.exists("uploads"):
+                os.makedirs("uploads")
+            
+            filename = f"import_students_{uuid.uuid4().hex[:8]}.xlsx"
+            filepath = os.path.join("uploads", filename)
+            file.save(filepath)
+
             # Đọc file Excel
-            df = pd.read_excel(file)
+            df = pd.read_excel(filepath)
             # Chuẩn hóa tên cột về chữ thường để dễ tìm
             df.columns = [str(c).strip().lower() for c in df.columns]
             
@@ -2526,6 +2725,7 @@ def import_students():
             class_col = next((c for c in df.columns if "lớp" in c or "class" in c), None)
             
             if not code_col or not name_col or not class_col:
+                if os.path.exists(filepath): os.remove(filepath)
                 flash("File Excel cần có 3 cột: 'Mã học sinh', 'Họ và tên', 'Lớp'", "error")
                 return redirect(request.url)
 
@@ -2548,7 +2748,7 @@ def import_students():
                 })
             
             # Chuyển sang trang xác nhận
-            return render_template("confirm_import.html", students=preview_data)
+            return render_template("confirm_import.html", students=preview_data, file_path=filepath)
 
         except Exception as e:
             flash(f"Lỗi đọc file: {str(e)}", "error")
@@ -2587,31 +2787,51 @@ def download_student_template():
 @login_required
 def save_imported_students():
     """Bước 2: Lưu vào CSDL sau khi xác nhận"""
+    filepath = request.form.get("file_path")
+    if not filepath or not os.path.exists(filepath):
+        flash("File nhập liệu không tồn tại hoặc đã hết hạn. Vui lòng thử lại.", "error")
+        return redirect(url_for('import_students'))
+        
     try:
-        # Lấy danh sách dạng mảng từ form
-        names = request.form.getlist("names[]")
-        classes = request.form.getlist("classes[]")
-        codes = request.form.getlist("codes[]")
+        df = pd.read_excel(filepath)
+        df.columns = [str(c).strip().lower() for c in df.columns]
+        
+        code_col = next((c for c in df.columns if "mã" in c or "code" in c), None)
+        name_col = next((c for c in df.columns if "tên" in c or "name" in c), None)
+        class_col = next((c for c in df.columns if "lớp" in c or "class" in c), None)
         
         count = 0
-        for name, s_class, code in zip(names, classes, codes):
+        skipped = 0
+        for index, row in df.iterrows():
+            student_code = str(row[code_col]).strip()
+            name = str(row[name_col]).strip()
+            s_class = str(row[class_col]).strip()
+            
+            if not name or name.lower() == 'nan': continue
+            if not student_code or student_code.lower() == 'nan': continue
+            
             # 1. Kiểm tra trùng mã trong DB
-            if Student.query.filter_by(student_code=code).first():
-                continue # Nếu trùng thì bỏ qua
+            if Student.query.filter_by(student_code=student_code).first():
+                skipped += 1
+                continue 
             
             # 2. Tự động tạo Lớp mới nếu chưa có
             if not ClassRoom.query.filter_by(name=s_class).first():
                 db.session.add(ClassRoom(name=s_class))
             
             # 3. Thêm học sinh
-            # Mặc định học sinh mới sẽ có 100 điểm (do logic trong model hoặc mặc định DB)
-            new_student = Student(name=name, student_class=s_class, student_code=code)
+            new_student = Student(name=name, student_class=s_class, student_code=student_code)
             db.session.add(new_student)
             
             count += 1
             
         db.session.commit()
-        flash(f"Đã nhập thành công {count} học sinh!", "success")
+        
+        # Cleanup
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            
+        flash(f"Kết quả nhập liệu: Thêm mới {count} học sinh. Bỏ qua {skipped} học sinh (đã tồn tại).", "success" if count > 0 else "warning")
         return redirect(url_for('manage_students'))
         
     except Exception as e:

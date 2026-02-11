@@ -8,3 +8,4 @@ SQLAlchemy
 Werkzeug
 ollama
 unidecode
+markdown

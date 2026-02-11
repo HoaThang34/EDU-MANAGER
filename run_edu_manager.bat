@@ -13,9 +13,9 @@ if %errorlevel% neq 0 (
 )
 
 REM 2. Check/Create Virtual Environment
-if not exist "venv" (
+if not exist ".venv" (
     echo [INFO] Creating virtual environment...
-    python -m venv venv
+    python -m venv .venv
     if %errorlevel% neq 0 (
         echo [ERROR] Failed to create virtual environment.
         pause
@@ -24,7 +24,7 @@ if not exist "venv" (
 )
 
 REM 3. Activate Virtual Environment
-call venv\Scripts\activate
+call .venv\Scripts\activate
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to activate virtual environment.
     pause
