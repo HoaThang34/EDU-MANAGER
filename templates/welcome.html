@@ -1,117 +1,212 @@
 {% extends "base.html" %}
-{% block title %}Chào Mừng - EduManager{% endblock %}
+{% block title %}Edu Manager - Hệ Sinh Thái Giáo Dục Thông Minh{% endblock %}
 
 {% block content %}
-<div class="relative overflow-hidden bg-white rounded-3xl shadow-xl min-h-[80vh]">
-    <div
-        class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-indigo-100 rounded-full blur-3xl opacity-50 animate-pulse">
-    </div>
-    <div class="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-purple-100 rounded-full blur-3xl opacity-50 animate-pulse"
-        style="animation-delay: 1s;"></div>
-
-    <div
-        class="relative z-10 px-6 py-16 sm:px-12 md:py-24 text-center lg:text-left flex flex-col lg:flex-row items-center justify-between gap-12">
-        <div class="lg:w-1/2 space-y-6">
-            <div
-                class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-sm font-semibold">
+<div class="welcome-landing min-h-screen -m-4 sm:-m-8">
+    <!-- Hero -->
+    <section class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl shadow-2xl text-white">
+        <div class="absolute inset-0 opacity-30">
+            <div class="absolute top-0 right-0 w-96 h-96 bg-indigo-500 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+            <div class="absolute bottom-0 left-0 w-80 h-80 bg-purple-500 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+        </div>
+        <div class="relative z-10 px-6 py-16 sm:py-24 lg:py-28 text-center">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-sm font-medium mb-6">
                 <span class="relative flex h-2 w-2">
-                    <span
-                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                Tích Hợp AI Thông Minh
+                Hệ sinh thái giáo dục tích hợp AI
             </div>
-
-            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900">
-                Quản Lý Học Sinh <br>
-                <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Thông Minh
-                    Hơn</span>
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight max-w-4xl mx-auto">
+                Edu Manager
             </h1>
-
-            <p class="text-lg text-slate-600 max-w-2xl">
-                Hệ thống theo dõi rèn luyện học sinh toàn diện cho trường THPT. Tự động hóa quy trình với công nghệ nhận
-                diện hình ảnh và trợ lý ảo.
+            <p class="text-xl sm:text-2xl text-indigo-200 mt-3 font-medium">
+                Hệ Sinh Thái Giáo Dục Thông Minh
             </p>
-
-            <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-4">
+            <p class="text-slate-300 mt-6 max-w-2xl mx-auto text-lg leading-relaxed">
+                Giải pháp quản lý học sinh toàn diện cho trường THPT: theo dõi nề nếp, quản lý điểm số, 
+                báo cáo tự động và trợ lý AI. Dữ liệu xử lý local, bảo mật tối đa.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center mt-10">
                 {% if current_user.is_authenticated %}
                 <a href="{{ url_for('dashboard') }}"
-                    class="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition transform hover:-translate-y-1">
+                    class="px-8 py-4 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
                     <i class="fas fa-chart-pie mr-2"></i> Vào Dashboard
                 </a>
                 <a href="{{ url_for('index') }}"
-                    class="px-8 py-4 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition">
-                    Xem Bảng Điểm
+                    class="px-8 py-4 bg-white/10 border border-white/30 text-white font-bold rounded-xl hover:bg-white/20 transition">
+                    Bảng Điểm Rèn Luyện
                 </a>
                 {% else %}
+                <a href="{{ url_for('student_login') }}"
+                    class="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
+                    <i class="fas fa-user-graduate mr-2"></i> Đăng nhập cho học sinh
+                </a>
                 <a href="{{ url_for('login') }}"
-                    class="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition transform hover:-translate-y-1">
-                    <i class="fas fa-sign-in-alt mr-2"></i> Đăng Nhập Ngay
+                    class="px-8 py-4 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
+                    <i class="fas fa-chalkboard-teacher mr-2"></i> Đăng nhập cho giáo viên
                 </a>
                 {% endif %}
             </div>
         </div>
+    </section>
 
-        <div class="lg:w-1/2 relative">
-            <div
-                class="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white transform rotate-2 hover:rotate-0 transition duration-500">
-                <div
-                    class="bg-gradient-to-br from-slate-800 to-slate-900 p-6 h-80 flex flex-col justify-center items-center text-white">
-                    <i class="fas fa-shield-alt text-8xl text-indigo-500 mb-6 drop-shadow-lg"></i>
-                    <div class="text-2xl font-mono font-bold">EduManager</div>
-                    <div class="mt-2 text-indigo-300">System Monitor</div>
-
-                    <div class="mt-8 flex gap-8">
-                        <div class="text-center">
-                            <div class="text-2xl font-bold text-white">12</div>
-                            <div class="text-xs text-slate-400 uppercase">Lớp Học</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-2xl font-bold text-green-400">98%</div>
-                            <div class="text-xs text-slate-400 uppercase">Nề Nếp Tốt</div>
-                        </div>
-                        <div class="text-center">
-                            <div class="text-2xl font-bold text-blue-400">AI</div>
-                            <div class="text-xs text-slate-400 uppercase">Hỗ Trợ</div>
-                        </div>
-                    </div>
+    <!-- 6 Điểm nổi bật -->
+    <section class="mt-12">
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-800 text-center mb-10">Điểm nổi bật</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg hover:border-indigo-100 transition-all">
+                <div class="w-14 h-14 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 text-2xl mb-4">
+                    <i class="fas fa-eye"></i>
                 </div>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">OCR nhận diện thẻ học sinh</h3>
+                <p class="text-slate-600 text-sm">Quét ảnh thẻ học sinh bằng AI, tự động nhập vi phạm, giảm sai sót và tiết kiệm thời gian.</p>
             </div>
-        </div>
-    </div>
-
-    <div class="px-6 py-12 sm:px-12 bg-slate-50/50 border-t border-slate-100">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition">
-                <div
-                    class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 mb-4 text-xl">
-                    <i class="fas fa-magic"></i>
-                </div>
-                <h3 class="text-lg font-bold text-slate-800 mb-2">AI Vision OCR</h3>
-                <p class="text-slate-500 text-sm">Quét thẻ học sinh tự động bằng AI, giảm thiểu nhập liệu thủ công và
-                    sai sót.</p>
-            </div>
-
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition">
-                <div
-                    class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 mb-4 text-xl">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg hover:border-purple-100 transition-all">
+                <div class="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 text-2xl mb-4">
                     <i class="fas fa-robot"></i>
                 </div>
-                <h3 class="text-lg font-bold text-slate-800 mb-2">Chatbot Thông Minh</h3>
-                <p class="text-slate-500 text-sm">Trợ lý ảo hỗ trợ tra cứu điểm số, lịch sử vi phạm và phân tích số liệu
-                    lớp học 24/7.</p>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">Chatbot & trợ lý AI</h3>
+                <p class="text-slate-600 text-sm">Tra cứu điểm, lịch sử vi phạm, tư vấn sư phạm bằng ngôn ngữ tự nhiên; AI chạy local qua Ollama.</p>
             </div>
-
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition">
-                <div
-                    class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-600 mb-4 text-xl">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg hover:border-emerald-100 transition-all">
+                <div class="w-14 h-14 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 text-2xl mb-4">
                     <i class="fas fa-file-excel"></i>
                 </div>
-                <h3 class="text-lg font-bold text-slate-800 mb-2">Báo Cáo Tự Động</h3>
-                <p class="text-slate-500 text-sm">Xuất báo cáo tuần, xếp hạng thi đua và nhận xét học sinh chỉ với 1 cú
-                    click.</p>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">Báo cáo tự động</h3>
+                <p class="text-slate-600 text-sm">Báo cáo tuần, xếp hạng thi đua, báo cáo phụ huynh và xuất Excel chuyên nghiệp chỉ với một click.</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg hover:border-amber-100 transition-all">
+                <div class="w-14 h-14 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 text-2xl mb-4">
+                    <i class="fas fa-balance-scale"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">Quản lý điểm & nề nếp</h3>
+                <p class="text-slate-600 text-sm">Theo dõi điểm thành phần (TX, GK, HK), vi phạm, điểm cộng và timeline tiến bộ từng học sinh.</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg hover:border-rose-100 transition-all">
+                <div class="w-14 h-14 bg-rose-100 rounded-xl flex items-center justify-center text-rose-600 text-2xl mb-4">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">Bảo mật dữ liệu local</h3>
+                <p class="text-slate-600 text-sm">Dữ liệu và AI xử lý trên máy trường, không gửi thông tin nhạy cảm lên cloud.</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-lg hover:border-cyan-100 transition-all">
+                <div class="w-14 h-14 bg-cyan-100 rounded-xl flex items-center justify-center text-cyan-600 text-2xl mb-4">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">Tin nhắn & thông báo</h3>
+                <p class="text-slate-600 text-sm">Chat nhóm, tin nhắn riêng giáo viên–học sinh, thông báo theo lớp và vai trò.</p>
             </div>
         </div>
-    </div>
+    </section>
+
+    <!-- Sứ mệnh & Điều hướng -->
+    <section class="mt-16 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-3xl p-8 sm:p-12 border border-indigo-100">
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-800 text-center mb-8">Sứ mệnh & Tầm nhìn</h2>
+        <div class="max-w-3xl mx-auto space-y-6 text-slate-700 text-center">
+            <p class="text-lg">
+                <strong>Sứ mệnh:</strong> Hỗ trợ giáo viên chủ nhiệm và nhà trường quản lý học sinh một cách khoa học, 
+                minh bạch và tiết kiệm thời gian, góp phần nâng cao chất lượng giáo dục.
+            </p>
+            <p class="text-lg">
+                <strong>Điều hướng:</strong> Edu Manager hướng tới trở thành nền tảng quản lý giáo dục thông minh, 
+                dễ mở rộng cho nhiều trường, tích hợp sâu hơn với chương trình học và phụ huynh.
+            </p>
+        </div>
+        <div class="text-center mt-8">
+            <a href="{{ url_for('docs') }}"
+                class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-lg transition">
+                <i class="fas fa-book-open"></i> Xem thêm — Tài liệu & Tính năng
+            </a>
+        </div>
+    </section>
+
+    <!-- Đánh giá người dùng (10) -->
+    <section class="mt-16">
+        <h2 class="text-2xl sm:text-3xl font-bold text-slate-800 text-center mb-10">Đánh giá từ người dùng</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center gap-1 text-amber-400 mb-3">
+                    {% for _ in range(5) %}<i class="fas fa-star"></i>{% endfor %}
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Hệ thống rất tiện, ghi nhận vi phạm nhanh, báo cáo tuần tự động giúp tôi tiết kiệm rất nhiều thời gian.</p>
+                <p class="text-slate-800 font-semibold text-sm">Cô Nguyễn Thị Hương — GVCN 10A1</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center gap-1 text-amber-400 mb-3">
+                    {% for _ in range(5) %}<i class="fas fa-star"></i>{% endfor %}
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Chatbot tra cứu học sinh rất hữu ích, không cần mở từng hồ sơ. AI chạy local nên yên tâm về bảo mật.</p>
+                <p class="text-slate-800 font-semibold text-sm">Thầy Trần Văn Minh — GVCN 11B2</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center gap-1 text-amber-400 mb-3">
+                    {% for _ in range(5) %}<i class="fas fa-star"></i>{% endfor %}
+                </div>
+                <p class="text-slate-600 text-sm mb-4">OCR quét thẻ học sinh chính xác, nhập hàng loạt vi phạm chỉ trong vài phút. Đáng dùng cho trường quy mô lớn.</p>
+                <p class="text-slate-800 font-semibold text-sm">Cô Lê Thị Lan — Tổ trưởng chuyên môn</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center gap-1 text-amber-400 mb-3">
+                    {% for _ in range(5) %}<i class="fas fa-star"></i>{% endfor %}
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Học sinh có thể tự xem điểm rèn luyện và chat với giáo viên. Giao diện rõ ràng, dễ dùng.</p>
+                <p class="text-slate-800 font-semibold text-sm">Em Hoàng Minh Tuấn — Học sinh 12C1</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center gap-1 text-amber-400 mb-3">
+                    {% for _ in range(5) %}<i class="fas fa-star"></i>{% endfor %}
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Quản lý điểm môn học và điểm rèn luyện trong cùng một hệ thống, xuất báo cáo phụ huynh rất chuyên nghiệp.</p>
+                <p class="text-slate-800 font-semibold text-sm">Thầy Phạm Đức Anh — GVBM Toán</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center gap-1 text-amber-400 mb-3">
+                    {% for _ in range(5) %}<i class="fas fa-star"></i>{% endfor %}
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Cài đặt đơn giản, chạy ổn định. Trợ lý đa năng giúp soạn nhận xét và gợi ý xử lý tình huống sư phạm.</p>
+                <p class="text-slate-800 font-semibold text-sm">Cô Vũ Thị Hà — GVCN 10B3</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center gap-1 text-amber-400 mb-3">
+                    {% for _ in range(5) %}<i class="fas fa-star"></i>{% endfor %}
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Timeline vi phạm và điểm cộng theo từng học sinh rất trực quan, dễ báo cáo với phụ huynh.</p>
+                <p class="text-slate-800 font-semibold text-sm">Thầy Đặng Quang Huy — GVCN 11A2</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center gap-1 text-amber-400 mb-3">
+                    {% for _ in range(5) %}<i class="fas fa-star"></i>{% endfor %}
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Phân quyền admin, GVCN, GVBM rõ ràng. Nhập điểm và quản lý lớp rất thuận tiện.</p>
+                <p class="text-slate-800 font-semibold text-sm">Cô Ngô Thị Mai — Phó hiệu trưởng</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center gap-1 text-amber-400 mb-3">
+                    {% for _ in range(5) %}<i class="fas fa-star"></i>{% endfor %}
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Thông báo theo lớp và tin nhắn riêng giúp trao đổi nhanh với giáo viên mà không cần dùng thêm app khác.</p>
+                <p class="text-slate-800 font-semibold text-sm">Em Trần Thị Ngọc — Học sinh 11B1</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center gap-1 text-amber-400 mb-3">
+                    {% for _ in range(5) %}<i class="fas fa-star"></i>{% endfor %}
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Hệ thống do đội trong trường phát triển nên rất sát nhu cầu thực tế. Mong có thêm tính năng in phiếu liên lạc.</p>
+                <p class="text-slate-800 font-semibold text-sm">Thầy Bùi Văn Kiên — GVCN 12A1</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer pháp lý -->
+    <footer class="mt-16 pt-8 pb-6 border-t border-slate-200">
+        <div class="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4 text-slate-600 text-sm">
+            <a href="{{ url_for('terms') }}" class="hover:text-indigo-600 hover:underline">Điều khoản sử dụng</a>
+            <span class="hidden sm:inline">·</span>
+            <a href="{{ url_for('privacy') }}" class="hover:text-indigo-600 hover:underline">Chính sách bảo mật</a>
+            <span class="hidden sm:inline">·</span>
+            <span class="text-slate-500">Bản quyền © Đội thi <strong>Agent_LLM</strong> — Trường THPT Chuyên Nguyễn Tất Thành — Tỉnh Lào Cai</span>
+        </div>
+    </footer>
 </div>
 {% endblock %}

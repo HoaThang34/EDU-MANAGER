@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Điều khoản sử dụng — Edu Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 sm:p-12">
+        <a href="{{ url_for('welcome') }}" class="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium mb-8">
+            <i class="fas fa-arrow-left"></i> Về trang chủ
+        </a>
+        <h1 class="text-3xl font-bold text-slate-800 mb-6">Điều khoản sử dụng</h1>
+        <div class="prose prose-slate text-slate-600 space-y-4">
+            <p><strong>1. Chấp nhận điều khoản</strong><br>
+            Việc truy cập và sử dụng ứng dụng Edu Manager đồng nghĩa với việc bạn chấp nhận các điều khoản sử dụng này.</p>
+            <p><strong>2. Mục đích sử dụng</strong><br>
+            Ứng dụng dành cho mục đích quản lý giáo dục trong phạm vi trường học. Người dùng không được sử dụng cho mục đích trái pháp luật hoặc vi phạm quy định nhà trường.</p>
+            <p><strong>3. Tài khoản và bảo mật</strong><br>
+            Người dùng có trách nhiệm bảo mật thông tin đăng nhập. Mọi hoạt động từ tài khoản của bạn được coi là do bạn thực hiện.</p>
+            <p><strong>4. Dữ liệu và quyền sở hữu</strong><br>
+            Dữ liệu nhập vào hệ thống thuộc quyền quản lý của nhà trường và người dùng có quyền truy cập theo phân quyền. Không được sao chép, phân phối dữ liệu trái phép.</p>
+            <p><strong>5. Thay đổi và ngừng dịch vụ</strong><br>
+            Nhà phát triển có thể cập nhật điều khoản hoặc tính năng. Dịch vụ có thể tạm ngừng để bảo trì, nâng cấp.</p>
+            <p><strong>6. Liên hệ</strong><br>
+            Mọi thắc mắc về điều khoản xin liên hệ qua đơn vị quản lý ứng dụng tại Trường THPT Chuyên Nguyễn Tất Thành, tỉnh Lào Cai.</p>
+        </div>
+        <div class="mt-8 pt-6 border-t border-slate-200">
+            <a href="{{ url_for('welcome') }}" class="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium">
+                <i class="fas fa-arrow-left"></i> Về trang chủ
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

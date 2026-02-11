@@ -125,6 +125,12 @@
                             class="fas fa-home mr-3 group-hover:text-indigo-400 {% if request.endpoint == 'welcome' %}text-indigo-400{% endif %}"></i>
                         <span class="font-medium">Trang Chủ</span>
                     </a>
+                    <a href="{{ url_for('docs') }}"
+                        class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint == 'docs' %}active text-white bg-slate-800 border-indigo-500{% endif %}">
+                        <i
+                            class="fas fa-book-open mr-3 group-hover:text-indigo-400 {% if request.endpoint == 'docs' %}text-indigo-400{% endif %}"></i>
+                        <span class="font-medium">Tài liệu</span>
+                    </a>
                     <a href="{{ url_for('dashboard') }}"
                         class="sidebar-link flex items-center px-3 py-2.5 rounded-r-md group {% if request.endpoint == 'dashboard' %}active text-white bg-slate-800 border-indigo-500{% endif %}">
                         <i
@@ -310,6 +316,7 @@
                     <i class="fas fa-bars text-2xl"></i>
                 </button>
 
+                {% if current_user.is_authenticated %}
                 <div class="flex items-center gap-2">
                     <div onclick="showTimeModal()"
                         class="cursor-pointer group flex items-center gap-2 px-4 py-1.5 bg-white border border-slate-200 rounded-full shadow-sm hover:shadow-md hover:border-indigo-300 transition-all">
@@ -322,8 +329,10 @@
                         <i class="fas fa-pen text-xs"></i>
                     </button>
                 </div>
+                {% endif %}
             </div>
 
+            {% if current_user.is_authenticated %}
             <!-- Notification Bell -->
             <a href="{{ url_for('notifications') }}"
                 class="relative p-2 text-slate-400 hover:text-indigo-600 transition group">
@@ -337,8 +346,9 @@
                 <span
                     class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg animate-pulse">
                     {{ unread_count if unread_count < 10 else '9+' }} </span>
-                        {% endif %}
+                {% endif %}
             </a>
+            {% endif %}
 
             <div class="hidden md:block font-medium text-slate-500">
                 Hệ Thống Đánh Giá Điểm Rèn Luyện Học Sinh

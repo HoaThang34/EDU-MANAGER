@@ -609,6 +609,19 @@ def _call_gemini(prompt, image_path=None, is_json=False):
 @app.route('/')
 def welcome(): return render_template('welcome.html')
 
+
+@app.route('/docs')
+def docs(): return render_template('docs.html')
+
+
+@app.route('/terms')
+def terms(): return render_template('terms.html')
+
+
+@app.route('/privacy')
+def privacy(): return render_template('privacy.html')
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":

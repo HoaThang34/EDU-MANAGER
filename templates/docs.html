@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Tài liệu & Tính năng — Edu Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto prose prose-slate">
+    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 sm:p-12">
+        <a href="{{ url_for('welcome') }}" class="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium mb-8">
+            <i class="fas fa-arrow-left"></i> Về trang chủ
+        </a>
+        <h1 class="text-3xl sm:text-4xl font-bold text-slate-800 mb-2">Tài liệu & Tính năng</h1>
+        <p class="text-slate-600 mb-10">Tìm hiểu chi tiết về Edu Manager — Hệ Sinh Thái Giáo Dục Thông Minh.</p>
+
+        <section class="mb-10">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">1. Giới thiệu ứng dụng</h2>
+            <p class="text-slate-600 leading-relaxed mb-4">
+                <strong>Edu Manager</strong> là giải pháp quản lý học sinh toàn diện, hiện đại, thiết kế cho giáo viên chủ nhiệm và ban quản lý trường THPT. 
+                Ứng dụng tích hợp trí tuệ nhân tạo (AI) chạy local qua Ollama, giúp tự động hóa theo dõi nề nếp, quản lý điểm số và phân tích dữ liệu học sinh một cách bảo mật và chuyên nghiệp.
+            </p>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">2. Tính năng chính</h2>
+            <ul class="space-y-3 text-slate-600">
+                <li><strong>OCR nhận diện thẻ học sinh:</strong> Quét ảnh thẻ, tự động nhập vi phạm theo mã học sinh, hỗ trợ nhập hàng loạt.</li>
+                <li><strong>Chatbot & Trợ lý AI:</strong> Tra cứu học sinh, lịch sử vi phạm, tư vấn sư phạm bằng ngôn ngữ tự nhiên; trợ lý đa năng hỗ trợ soạn nhận xét, phân tích lớp.</li>
+                <li><strong>Quản lý điểm:</strong> Điểm thành phần (TX, GK, HK), tự động tính trung bình, xếp loại học lực; quản lý môn học và lớp học.</li>
+                <li><strong>Nề nếp & điểm cộng:</strong> Ghi nhận vi phạm, điểm trừ theo quy định; thêm điểm cộng theo loại; timeline tiến bộ từng học sinh.</li>
+                <li><strong>Báo cáo:</strong> Báo cáo tuần, xếp hạng thi đua, báo cáo phụ huynh, xuất Excel, kho lưu trữ kết quả, lịch sử thay đổi CSDL.</li>
+                <li><strong>Tin nhắn & thông báo:</strong> Phòng chat chung, tin nhắn riêng giáo viên–học sinh, thông báo theo lớp/vai trò.</li>
+                <li><strong>Phân quyền:</strong> Admin, GVCN (lớp được giao), GVBM (môn được giao); quản lý giáo viên, gửi thông báo.</li>
+                <li><strong>Học sinh:</strong> Đăng nhập riêng, xem điểm rèn luyện, chat với giáo viên, nhận thông báo.</li>
+            </ul>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">3. Ứng dụng thực tế</h2>
+            <p class="text-slate-600 leading-relaxed mb-4">
+                Ứng dụng phù hợp cho trường THPT: giáo viên chủ nhiệm theo dõi nề nếp và điểm rèn luyện từng lớp; giáo viên bộ môn nhập và xem điểm học tập; 
+                ban giám hiệu xem báo cáo tổng hợp; học sinh và phụ huynh (qua báo cáo) nắm được tình hình rèn luyện và học tập. 
+                Dữ liệu và AI xử lý local nên phù hợp yêu cầu bảo mật dữ liệu học sinh trong trường học.
+            </p>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">4. Hướng tới</h2>
+            <p class="text-slate-600 leading-relaxed mb-4">
+                Edu Manager hướng tới trở thành nền tảng quản lý giáo dục thông minh, dễ mở rộng cho nhiều trường; 
+                tích hợp sâu hơn với chương trình học, phiếu liên lạc, và kênh thông tin tới phụ huynh; 
+                tiếp tục cải thiện AI (Ollama/local) cho tra cứu và phân tích, đồng thời duy trì nguyên tắc bảo mật dữ liệu local.
+            </p>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">5. Công nghệ sử dụng</h2>
+            <p class="text-slate-600 leading-relaxed mb-4">
+                Backend: Python, Flask, SQLAlchemy. Cơ sở dữ liệu: SQLite (local). AI: Ollama (local), có thể kết hợp mô hình cloud. 
+                Giao diện: HTML5, Tailwind CSS, Chart.js, Font Awesome. Xử lý dữ liệu: Pandas, OpenPyXL.
+            </p>
+        </section>
+
+        <div class="pt-6 border-t border-slate-200">
+            <a href="{{ url_for('welcome') }}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition">
+                <i class="fas fa-home"></i> Về trang chủ
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
