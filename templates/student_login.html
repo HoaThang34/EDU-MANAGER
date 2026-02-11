@@ -6,94 +6,409 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đăng nhập Học sinh - EDU Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary-start: #5b21b6;
+            --primary-end: #7c3aed;
+            --primary-deep: #4c1d95;
+            --accent: #a78bfa;
+            --surface: #faf5ff;
+            --card-bg: #ffffff;
+            --text-muted: #64748b;
+            --border: #e9d5ff;
+        }
+
+        * {
+            font-family: 'Be Vietnam Pro', 'Segoe UI', sans-serif;
+        }
+
         body {
-            background-color: #f8f9fa;
-            height: 100vh;
+            min-height: 100vh;
+            margin: 0;
+            background: var(--surface);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 20% 40%, rgba(124, 58, 237, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(167, 139, 250, 0.12) 0%, transparent 50%),
+                linear-gradient(180deg, var(--surface) 0%, #f3e8ff 100%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .layout {
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
-            justify_content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            justify-content: center;
+            gap: 2rem;
+            padding: 2rem;
+        }
+
+        .form-section {
+            flex: 0 1 400px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
         .login-card {
             width: 100%;
-            max-width: 400px;
+            max-width: 380px;
             border: none;
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 1.25rem;
+            box-shadow:
+                0 4px 6px -1px rgba(91, 33, 182, 0.08),
+                0 10px 25px -5px rgba(91, 33, 182, 0.1),
+                0 0 0 1px rgba(91, 33, 182, 0.05);
             overflow: hidden;
+            background: var(--card-bg);
+            animation: cardIn 0.5s ease-out;
+        }
+
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .card-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 50%, #8b5cf6 100%);
             color: white;
-            text-align: center;
-            padding: 2rem 1rem;
+            padding: 2rem 1.5rem;
             border: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-header::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -30%;
+            width: 80%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .card-header .icon-wrap {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.2);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            backdrop-filter: blur(8px);
+        }
+
+        .card-header .icon-wrap svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        .card-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.02em;
         }
 
         .card-body {
-            padding: 2rem;
-            background: white;
+            padding: 2rem 1.5rem;
+            background: var(--card-bg);
+        }
+
+        .form-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .input-group {
+            border-radius: 0.75rem;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-group:focus-within {
+            border-color: var(--primary-end);
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+        }
+
+        .input-group-text {
+            background: #faf5ff;
+            border: none;
+            color: var(--primary-end);
+            padding: 0 1rem;
+        }
+
+        .input-group-text svg {
+            width: 20px;
+            height: 20px;
         }
 
         .form-control {
-            border-radius: 0.5rem;
-            padding: 0.75rem 1rem;
-            border: 1px solid #e2e8f0;
+            border: none;
+            border-radius: 0;
+            padding: 0.875rem 1rem;
+            font-size: 1rem;
+            background: var(--card-bg);
+        }
+
+        .form-control::placeholder {
+            color: #94a3b8;
+        }
+
+        .form-control:focus {
+            box-shadow: none;
+            outline: none;
         }
 
         .btn-login {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
             border: none;
-            border-radius: 0.5rem;
-            padding: 0.75rem;
+            border-radius: 0.75rem;
+            padding: 0.875rem 1.25rem;
             font-weight: 600;
+            font-size: 1rem;
             width: 100%;
+            color: white;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 0.5rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-login:hover {
+            background: linear-gradient(135deg, var(--primary-deep) 0%, var(--primary-start) 100%);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px -4px rgba(91, 33, 182, 0.35);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .btn-login svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .link-teacher {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            margin-top: 1.25rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .link-teacher:hover {
+            color: var(--primary-end);
+        }
+
+        .link-teacher svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Khối thông tin */
+        .info-section {
+            flex: 0 1 380px;
+            max-width: 420px;
+        }
+
+        .info-card {
+            background: var(--card-bg);
+            border-radius: 1.25rem;
+            padding: 1.75rem;
+            box-shadow:
+                0 4px 6px -1px rgba(91, 33, 182, 0.06),
+                0 10px 25px -5px rgba(91, 33, 182, 0.08),
+                0 0 0 1px rgba(91, 33, 182, 0.04);
+            animation: cardIn 0.5s ease-out 0.1s both;
+        }
+
+        .info-card h2 {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: var(--primary-deep);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-card h2 svg {
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+            color: var(--primary-end);
+        }
+
+        .info-card p {
+            color: var(--text-muted);
+            font-size: 0.9375rem;
+            line-height: 1.65;
+            margin-bottom: 1.25rem;
+        }
+
+        .info-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-steps {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 1rem 0;
+        }
+
+        .info-steps li {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 0.875rem;
+            color: var(--text-muted);
+            font-size: 0.9375rem;
+            line-height: 1.5;
+        }
+
+        .info-steps li:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-steps .step-num {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-start), var(--primary-end));
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .info-steps .step-icon {
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .info-steps .step-icon svg {
+            width: 20px;
+            height: 20px;
+            color: var(--primary-end);
+        }
+
+        .alert {
+            border-radius: 0.75rem;
+            border: 1px solid rgba(239, 68, 68, 0.2);
         }
     </style>
 </head>
 
 <body>
 
-    <div class="login-card card">
-        <div class="card-header">
-            <h3 class="mb-0"><i class="fas fa-graduation-cap me-2"></i>Cổng Học Sinh</h3>
-            <p class="mb-0 opacity-75">Trường THPT Chuyên Nguyễn Tất Thành</p>
-        </div>
-        <div class="card-body">
-            {% with messages = get_flashed_messages(category_filter=["error"]) %}
-            {% if messages %}
-            {% for message in messages %}
-            <div class="alert alert-danger py-2 mb-3" role="alert">
-                <small>{{ message }}</small>
-            </div>
-            {% endfor %}
-            {% endif %}
-            {% endwith %}
-
-            <form method="POST">
-                <div class="mb-4">
-                    <label for="student_code" class="form-label text-secondary fw-bold small">MÃ HỌC SINH</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light border-end-0"><i
-                                class="fas fa-id-card text-secondary"></i></span>
-                        <input type="text" class="form-control border-start-0 ps-0" id="student_code"
-                            name="student_code" placeholder="VD: 12 TIN-001" required autofocus>
+    <div class="layout">
+        <section class="form-section">
+            <div class="login-card card">
+                <div class="card-header">
+                    <div class="icon-wrap">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
                     </div>
+                    <h1>Cổng Học Sinh</h1>
                 </div>
+                <div class="card-body">
+                    {% with messages = get_flashed_messages(category_filter=["error"]) %}
+                    {% if messages %}
+                    {% for message in messages %}
+                    <div class="alert alert-danger py-2 mb-3" role="alert">
+                        <small>{{ message }}</small>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                    {% endwith %}
 
-                <button type="submit" class="btn btn-primary btn-login">
-                    Tra cứu & Đăng nhập <i class="fas fa-arrow-right ms-2"></i>
-                </button>
-                <div class="text-center mt-3">
-                    <a href="{{ url_for('login') }}" class="text-decoration-none small text-secondary">Đăng nhập Giáo
-                        viên</a>
+                    <form method="POST">
+                        <div class="mb-4">
+                            <label for="student_code" class="form-label">Mã học sinh</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/><path d="M6 10v10"/><path d="M18 10v10"/></svg>
+                                </span>
+                                <input type="text" class="form-control" id="student_code"
+                                    name="student_code" placeholder="VD: 12 TIN-001" required autofocus>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-login">
+                            Tra cứu & Đăng nhập
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                        </button>
+                        <div class="text-center">
+                            <a href="{{ url_for('login') }}" class="link-teacher">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                                Đăng nhập Giáo viên
+                            </a>
+                        </div>
+                    </form>
                 </div>
-            </form>
-        </div>
+            </div>
+        </section>
+
+        <section class="info-section">
+            <div class="info-card">
+                <h2>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    Trang này là gì?
+                </h2>
+                <p>Đây là <strong>Cổng đăng nhập dành cho học sinh</strong> của hệ thống EDU Manager. Tại đây bạn có thể tra cứu điểm số, xem lịch sử nề nếp và thông tin cá nhân của mình sau khi đăng nhập bằng mã học sinh.</p>
+
+                <h2>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>
+                    Cách đăng nhập?
+                </h2>
+                <ol class="info-steps">
+                    <li>
+                        <span class="step-num">1</span>
+                        <span class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg></span>
+                        <span>Nhập <strong>mã học sinh</strong> của bạn vào ô bên cạnh (ví dụ: <code>12 TIN-001</code>). Mã thường theo dạng lớp-ký hiệu hoặc do giáo viên cung cấp.</span>
+                    </li>
+                    <li>
+                        <span class="step-num">2</span>
+                        <span class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></svg></span>
+                        <span>Bấm nút <strong>Tra cứu & Đăng nhập</strong>. Nếu mã đúng, bạn sẽ được chuyển vào trang cá nhân để xem điểm và nề nếp.</span>
+                    </li>
+                </ol>
+                <p>Nếu bạn là giáo viên, hãy dùng đường dẫn <strong>Đăng nhập Giáo viên</strong> phía dưới form.</p>
+            </div>
+        </section>
     </div>
 
 </body>

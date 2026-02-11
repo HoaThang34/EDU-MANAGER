@@ -317,15 +317,22 @@
 
                             <!-- Chat Messages -->
                             <div class="chat-messages" id="chatList">
-                                <div class="message bot">
-                                    Xin chào <b>{{ student.name }}</b>! 👋 <br>
-                                    Mình là Trợ lý AI của trường Nguyễn Tất Thành. Mình có thể giúp gì cho bạn hôm nay?
-                                </div>
+                                <div class="message bot"> Chào <b>{{ student.name }}</b>! 👋 Mình là Trợ lý AI trường Nguyễn Tất Thành. Em cần mình hỗ trợ gì hôm nay?</div>
                             </div>
 
                             <!-- Chat Input -->
                             <div class="p-3 bg-white border-top">
+                                <div class="mb-2 d-flex align-items-center gap-2 flex-wrap d-none" id="chatFilePreview">
+                                    <span class="badge bg-secondary d-inline-flex align-items-center">
+                                        <i class="fas fa-paperclip me-1"></i><span id="chatFileName"></span>
+                                        <button type="button" class="btn-close btn-close-white btn-sm ms-2" style="font-size: 0.6rem;" onclick="clearChatFile()" aria-label="Bỏ file"></button>
+                                    </span>
+                                </div>
                                 <div class="input-group">
+                                    <label class="input-group-text btn btn-outline-secondary mb-0" for="chatFileInput" title="Đính kèm file (ảnh, PDF)">
+                                        <i class="fas fa-paperclip"></i>
+                                    </label>
+                                    <input type="file" id="chatFileInput" class="d-none" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf" onchange="onChatFileSelect(event)">
                                     <input type="text" id="chatInput" class="form-control"
                                         placeholder="Nhập câu hỏi của bạn..." onkeypress="handleEnter(event)">
                                     <button class="btn btn-primary" type="button" onclick="sendMessage()">
@@ -333,7 +340,7 @@
                                     </button>
                                 </div>
                                 <small class="text-muted mt-2 d-block text-center" style="font-size: 0.75rem;">
-                                    AI có thể đưa ra thông tin chưa chính xác. Hãy kiểm chứng lại với thầy cô nhé.
+                                    Có thể gửi ảnh hoặc PDF. AI có thể đưa ra thông tin chưa chính xác — hãy kiểm chứng lại với thầy cô nhé.
                                 </small>
                             </div>
                         </div>
@@ -348,20 +355,45 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <script>
+        function onChatFileSelect(e) {
+            const fileInput = document.getElementById('chatFileInput');
+            const preview = document.getElementById('chatFilePreview');
+            const nameEl = document.getElementById('chatFileName');
+            const f = fileInput && fileInput.files && fileInput.files[0];
+            if (f) {
+                nameEl.textContent = f.name;
+                preview.classList.remove('d-none');
+            } else {
+                preview.classList.add('d-none');
+            }
+        }
+
+        function clearChatFile() {
+            const fileInput = document.getElementById('chatFileInput');
+            const preview = document.getElementById('chatFilePreview');
+            if (fileInput) fileInput.value = '';
+            preview.classList.add('d-none');
+        }
+
         async function sendMessage() {
             const input = document.getElementById('chatInput');
+            const fileInput = document.getElementById('chatFileInput');
             const text = input.value.trim();
             const mode = document.querySelector('input[name="chatMode"]:checked').value;
             const chatList = document.getElementById('chatList');
+            const hasFile = fileInput && fileInput.files && fileInput.files[0];
 
-            if (!text) return;
+            if (!text && !hasFile) return;
+
+            const displayText = text || '[Đã gửi file: ' + (hasFile ? fileInput.files[0].name : '') + ']';
 
             // 1. Add User Message
             const userDiv = document.createElement('div');
             userDiv.className = 'message user animate__animated animate__fadeInRight';
-            userDiv.textContent = text;
+            userDiv.textContent = displayText;
             chatList.appendChild(userDiv);
             input.value = '';
+            clearChatFile();
             chatList.scrollTop = chatList.scrollHeight;
 
             // 2. Add Loading State
@@ -373,20 +405,37 @@
             chatList.scrollTop = chatList.scrollHeight;
 
             try {
-                // 3. Call API
-                const response = await fetch('/api/student/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text, mode: mode })
-                });
+                let response;
+                if (hasFile) {
+                    const formData = new FormData();
+                    formData.append('message', text || '[Xem file đính kèm]');
+                    formData.append('mode', mode);
+                    formData.append('file', fileInput.files[0]);
+                    response = await fetch('/api/student/chat', {
+                        method: 'POST',
+                        body: formData
+                    });
+                } else {
+                    response = await fetch('/api/student/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: text, mode: mode })
+                    });
+                }
                 const data = await response.json();
 
-                // 4. Remove Loading & Add Bot Response
                 loadingDiv.remove();
+                if (!response.ok) {
+                    const errDiv = document.createElement('div');
+                    errDiv.className = 'message bot text-danger';
+                    errDiv.textContent = data.error || 'Có lỗi xảy ra.';
+                    chatList.appendChild(errDiv);
+                    chatList.scrollTop = chatList.scrollHeight;
+                    return;
+                }
 
                 const botDiv = document.createElement('div');
                 botDiv.className = 'message bot animate__animated animate__fadeInLeft';
-                // Render Markdown using marked.parse
                 botDiv.innerHTML = marked.parse(data.reply || "Lỗi kết nối.");
                 chatList.appendChild(botDiv);
                 chatList.scrollTop = chatList.scrollHeight;

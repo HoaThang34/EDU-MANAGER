@@ -87,15 +87,17 @@ def can_access_student(student_id):
     return False
 
 
-def call_ollama(prompt, model="gemini-3-flash-preview:cloud"):
+def call_ollama(prompt, model=None):
     """
-    Gọi Ollama API để chat với AI model local
+    Gọi Ollama API để chat với AI model local.
+    Model mặc định: gemini-3-flash-preview (chạy bằng: ollama run gemini-3-flash-preview)
     Args:
         prompt: Câu hỏi/prompt gửi cho AI
-        model: Tên model Ollama (mặc định llama3.2)
+        model: Tên model Ollama (None = dùng OLLAMA_MODEL)
     Returns:
         (response_text, error)
     """
+    model = model or OLLAMA_MODEL
     try:
         response = ollama.chat(
             model=model,
@@ -193,8 +195,8 @@ app.config["SECRET_KEY"] = "chia-khoa-bi-mat-cua-ban-ne-123456"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "database.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Ollama Configuration
-OLLAMA_MODEL = "gemini-3-flash-preview:cloud"
+# Ollama Configuration (model chạy bằng: ollama run gemini-3-flash-preview)
+OLLAMA_MODEL = "gemini-3-flash-preview"
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
 db.init_app(app)
@@ -874,52 +876,81 @@ def student_dashboard():
                            ai_advice=ai_advice,
                            current_week=current_week)
 
+ALLOWED_CHAT_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf'}
+
+
+def _student_chat_call_ollama(system_prompt, history, user_message, image_base64=None):
+    """
+    Gọi Ollama cho student chat. Nếu có image_base64 thì dùng message có images.
+    history: list of dict {role, content}
+    """
+    model = OLLAMA_MODEL
+    # Build messages cho Ollama (có hỗ trợ images trong user message)
+    messages = []
+    # System context: gộp system + history vào prompt của user đầu (hoặc message riêng tùy model)
+    context = f"{system_prompt}\n\nLịch sử trò chuyện:\n"
+    for h in history:
+        context += f"{h['role'].title()}: {h['content']}\n"
+    context += f"\nUser: {user_message}\nAssistant:"
+    if image_base64:
+        messages.append({"role": "user", "content": context, "images": [image_base64]})
+    else:
+        messages.append({"role": "user", "content": context})
+    try:
+        response = ollama.chat(model=model, messages=messages)
+        return (response.get("message") or {}).get("content", "").strip(), None
+    except Exception as e:
+        return None, str(e)
+
+
 @app.route("/api/student/chat", methods=["POST"])
 @student_required
 def student_chat_api():
     """
-    API Chatbot cho học sinh
-    Payload: { "message": "...", "mode": "rule|study" }
+    API Chatbot cho học sinh.
+    Chấp nhận: application/json { "message", "mode" } hoặc multipart/form-data với message, mode, file (tùy chọn).
     """
-    data = request.get_json()
-    msg = data.get("message", "").strip()
-    mode = data.get("mode", "rule") # rule (tâm lý/nội quy) hoặc study (học tập)
-    
-    if not msg:
-        return jsonify({"error": "Empty message"}), 400
-        
-    student_id = session['student_id']
-    session_id = get_or_create_chat_session()
-    
-    # 1. Lưu tin nhắn User
-    save_message(session_id, None, 'user', msg, context_data={"student_id": student_id, "mode": mode})
-    
-    # 2. Chọn System Prompt
-    import prompts
-    if mode == 'study':
-        system_prompt = prompts.STUDENT_LEARNING_PROMPT
+    msg = ""
+    mode = "rule"
+    file_obj = None
+    image_base64 = None
+    attached_filename = None
+
+    if request.content_type and "multipart/form-data" in request.content_type:
+        msg = (request.form.get("message") or "").strip()
+        mode = request.form.get("mode") or "rule"
+        file_obj = request.files.get("file")
+        if file_obj and file_obj.filename:
+            ext = (file_obj.filename or "").rsplit(".", 1)[-1].lower()
+            if ext not in ALLOWED_CHAT_EXTENSIONS:
+                return jsonify({"error": "Định dạng file không hỗ trợ. Chỉ chấp nhận: " + ", ".join(ALLOWED_CHAT_EXTENSIONS)}), 400
+            attached_filename = file_obj.filename
+            data = file_obj.read()
+            if ext in {"png", "jpg", "jpeg", "gif", "webp"}:
+                image_base64 = base64.b64encode(data).decode("utf-8")
+            # PDF có thể mở rộng sau (OCR hoặc text extraction)
     else:
-        system_prompt = prompts.STUDENT_RULE_PROMPT
-        
-    # 3. Build context for AI
-    # Lấy lịch sử chat gần đây
+        data = request.get_json() or {}
+        msg = data.get("message", "").strip()
+        mode = data.get("mode", "rule")
+
+    if not msg and not attached_filename:
+        return jsonify({"error": "Empty message"}), 400
+    if not msg:
+        msg = f"[Đã gửi file: {attached_filename}]"
+
+    student_id = session["student_id"]
+    session_id = get_or_create_chat_session()
+
+    save_message(session_id, None, "user", msg, context_data={"student_id": student_id, "mode": mode, "attachment": attached_filename})
+
+    import prompts
+    system_prompt = prompts.STUDENT_LEARNING_PROMPT if mode == "study" else prompts.STUDENT_RULE_PROMPT
     history = get_conversation_history(session_id, limit=6)
-    
-    # Ghép prompt
-    full_prompt = f"{system_prompt}\n\nLịch sử trò chuyện:\n"
-    for h in history:
-        full_prompt += f"{h['role'].title()}: {h['content']}\n"
-        
-    full_prompt += f"\nUser: {msg}\nAssistant:"
-    
-    # 4. Gọi AI
-    reply, err = call_ollama(full_prompt)
+    reply, err = _student_chat_call_ollama(system_prompt, history, msg, image_base64=image_base64)
     if err:
         reply = "Xin lỗi, hiện tại mình đang bị 'lag' xíu. Bạn hỏi lại sau nhé! 😿"
-        
-    # 5. Lưu tin nhắn Bot
-    save_message(session_id, None, 'assistant', reply, context_data={"student_id": student_id, "mode": mode})
-    
+    save_message(session_id, None, "assistant", reply, context_data={"student_id": student_id, "mode": mode})
     return jsonify({"reply": reply})
 
 
@@ -2058,9 +2089,8 @@ def generate_report(student_id):
         4. Trả lời bằng Tiếng Việt. Không cần chào hỏi rườm rà, vào thẳng nội dung nhận xét.
         """
 
-        # Gọi Ollama (Chạy model Text)
-        # Lưu ý: Đảm bảo bạn đã pull model này (gemini-3-flash)
-        model_name = os.environ.get("OLLAMA_TEXT_MODEL", "gemini-3-flash-preview:cloud") 
+        # Gọi Ollama (Chạy model Text: ollama run gemini-3-flash-preview)
+        model_name = os.environ.get("OLLAMA_TEXT_MODEL", OLLAMA_MODEL) 
         
         response = ollama.chat(model=model_name, messages=[
             {'role': 'user', 'content': prompt},
@@ -3432,7 +3462,7 @@ Trả lời ngắn gọn, rõ ràng bằng tiếng Việt. Sử dụng markdown 
     answer, err = call_ollama(full_prompt)
     
     if err:
-        response_text = f"⚠️ {err}\n\nVui lòng kiểm tra:\n• Ollama đã được cài đặt và chạy chưa?\n• Model `llama3.2` đã được pull chưa? (`ollama pull llama3.2`)"
+        response_text = f"⚠️ {err}\n\nVui lòng kiểm tra:\n• Ollama đã được cài đặt và chạy chưa?\n• Model đã được pull chưa? (`ollama pull gemini-3-flash-preview`)"
     else:
         response_text = answer or "Xin lỗi, tôi không thể trả lời câu hỏi này."
     
