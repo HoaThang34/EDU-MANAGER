@@ -24,6 +24,16 @@
 - **Theo Dõi Nề Nếp & Điểm Thưởng**: Ghi nhận chi tiết các lỗi vi phạm và các điểm cộng (Bonus points), xây dựng timeline tiến bộ trực quan cho từng học sinh.
 - **Báo Cáo Đa Dạng**: Xuất báo cáo tuần, tháng, báo cáo dành cho phụ huynh và tệp Excel chuyên nghiệp chỉ với một click.
 
+### 📄 Trang Thông Tin & Pháp Lý
+- **Tài liệu & Tính năng** (`/docs`): Giới thiệu chi tiết ứng dụng, tính năng chính, hướng ứng dụng thực tế và tầm nhìn phát triển.
+- **Chính sách bảo mật** (`/privacy`): Cam kết thu thập, lưu trữ, sử dụng và bảo vệ dữ liệu; AI xử lý local, không gửi dữ liệu nhạy cảm lên internet.
+- **Điều khoản sử dụng** (`/terms`): Quy định sử dụng, trách nhiệm tài khoản, quyền sở hữu dữ liệu và liên hệ.
+
+### 👥 Phân Quyền & Giao Tiếp
+- **Phân quyền**: Admin, Giáo viên chủ nhiệm (theo lớp), Giáo viên bộ môn (theo môn); quản lý giáo viên và gửi thông báo theo vai trò/lớp.
+- **Tin nhắn & thông báo**: Phòng chat chung, tin nhắn riêng giáo viên–học sinh, thông báo theo lớp hoặc vai trò.
+- **Học sinh**: Đăng nhập riêng, xem điểm rèn luyện, chat với giáo viên, nhận thông báo.
+
 ---
 
 ## 🛠️ Stack Công Nghệ
@@ -76,7 +86,7 @@ Sau khi khởi chạy thành công, truy cập: `http://localhost:5000`
 
 - `app.py`: Tệp tin điều hành chính, xử lý logic server và API.
 - `models.py`: Định nghĩa cấu trúc các bảng trong cơ sở dữ liệu.
-- `templates/`: Kho chứa giao diện người dùng (Hệ thống template HTML linh hoạt).
+- `templates/`: Kho chứa giao diện người dùng (base, welcome, dashboard, docs, privacy, terms, ...).
 - `uploads/`: Thư mục lưu trữ ảnh tạm thời để xử lý OCR.
 - `prompts.py`: Quản lý các prompt dành cho hệ thống AI.
 
